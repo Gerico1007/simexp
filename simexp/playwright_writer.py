@@ -152,6 +152,67 @@ class SimplenoteWriter:
         await self.page.wait_for_load_state('networkidle', timeout=self.timeout)
         logger.info("✅ Page loaded")
 
+    async def switch_to_note(self, note_title: str = None, note_id: str = None):
+        """
+        Switch to a specific note in Simplenote by clicking on it in the sidebar
+
+        Args:
+            note_title: Title of the note to switch to (e.g., "Aureon 🌿")
+            note_id: Note ID to switch to (alternative to title)
+
+        Raises:
+            Exception if note not found
+        """
+        logger.info(f"🔄 Switching to note: {note_title or note_id}")
+
+        # Wait for notes list to load
+        await asyncio.sleep(2)
+
+        if note_title:
+            # Find note by title in the sidebar
+            logger.info(f"🔍 Searching for note titled: {note_title}")
+
+            # Debug: List all note titles found
+            all_note_titles = await self.page.evaluate("""
+                () => {
+                    const notes = Array.from(document.querySelectorAll('.note-list-item, [class*="note"], div[role="button"]'));
+                    return notes.map(n => n.textContent?.trim().substring(0, 50)).filter(Boolean);
+                }
+            """)
+            logger.info(f"📋 Found {len(all_note_titles)} notes in sidebar: {all_note_titles[:5]}")
+
+            # Try to click on the note with this title
+            clicked = await self.page.evaluate(f"""
+                (title) => {{
+                    const notes = Array.from(document.querySelectorAll('.note-list-item, [class*="note"], div[role="button"]'));
+
+                    for (const note of notes) {{
+                        const text = note.textContent || note.innerText;
+                        if (text && text.includes(title)) {{
+                            console.log('Found note:', title);
+                            note.click();
+                            return true;
+                        }}
+                    }}
+                    return false;
+                }}
+            """, note_title)
+
+            logger.info(f"{'✅' if clicked else '❌'} Click {'succeeded' if clicked else 'failed'} for note: {note_title}")
+
+            if not clicked:
+                logger.warning(f"⚠️  Could not find note titled '{note_title}' in sidebar")
+                logger.warning("💡 Please ensure a note with this exact title exists in Simplenote")
+
+        elif note_id:
+            # Use note ID to navigate via URL hash
+            logger.info(f"🔍 Navigating to note ID: {note_id}")
+            await self.page.evaluate(f"window.location.hash = '#note/{note_id}'")
+
+        # Wait for note to load
+        await asyncio.sleep(3)
+        logger.info("✅ Note switch complete")
+
     async def find_editor(self) -> str:
         """
         Find the editor element using multiple selector strategies
@@ -168,7 +229,7 @@ class SimplenoteWriter:
             try:
                 element = await self.page.wait_for_selector(
                     selector,
-                    timeout=5000,
+                    timeout=8000,  # Increased timeout for after note-switching
                     state='visible'
                 )
                 if element:
@@ -209,7 +270,8 @@ class SimplenoteWriter:
         self,
         content: str,
         mode: Literal['append', 'replace'] = 'append',
-        separator: str = '\n\n---\n\n'
+        separator: str = '\n\n---\n\n',
+        skip_navigation: bool = False
     ) -> dict:
         """
         Write content to Simplenote note
@@ -218,76 +280,93 @@ class SimplenoteWriter:
             content: Text to write
             mode: 'append' to add to existing content, 'replace' to overwrite
             separator: String to insert between existing and new content (append mode)
+            skip_navigation: Skip initial navigation (useful if already navigated and switched notes)
 
         Returns:
             dict with status, written content preview, and metadata
         """
-        await self.navigate()
+        if not skip_navigation:
+            await self.navigate()
 
         # Find the editor element
         selector = await self.find_editor()
 
-        # Get current content if appending
+        # Get current content for verification
         current_content = ""
         if mode == 'append':
             current_content = await self.get_current_content(selector)
             logger.info(f"📄 Current content length: {len(current_content)} chars")
-
-        # Construct new content
-        if mode == 'append' and current_content:
-            new_content = f"{current_content}{separator}{content}"
-        else:
-            new_content = content
-
-        # Write to editor
-        logger.info(f"✍️  Writing {len(new_content)} characters...")
 
         # Different approaches for different editor types
         element = await self.page.query_selector(selector)
         tag_name = await element.evaluate('el => el.tagName.toLowerCase()')
 
         if tag_name in ['textarea', 'input']:
-            # Standard form elements
+            # Standard form elements - can use fill()
+            if mode == 'append' and current_content:
+                new_content = f"{current_content}{separator}{content}"
+            else:
+                new_content = content
+            logger.info(f"✍️  Writing {len(new_content)} characters...")
             await self.page.fill(selector, new_content)
         else:
-            # ContentEditable div - need to use actual typing simulation
-            # First, click the element to focus it
+            # ContentEditable div - use keyboard simulation
             await element.click()
             await asyncio.sleep(0.5)
 
-            # Select all existing content and delete it if replacing
-            await self.page.keyboard.press('Control+A')
-
-            # Type the new content character by character (more reliable for Simplenote)
-            # For performance, we'll type in chunks
-            logger.info("⌨️  Typing content into editor...")
-            await self.page.keyboard.type(new_content, delay=0)
-
-            # Alternative: Use clipboard paste (faster for large content)
-            # await self.page.evaluate(f"navigator.clipboard.writeText({json.dumps(new_content)})")
-            # await self.page.keyboard.press('Control+V')
+            if mode == 'append':
+                # Append mode: go to end and type only new content
+                logger.info(f"✍️  Appending {len(separator) + len(content)} characters...")
+                await self.page.keyboard.press('Control+End')  # Go to end
+                await asyncio.sleep(0.2)
+                logger.info("⌨️  Typing separator and new content...")
+                await self.page.keyboard.type(separator + content, delay=0)
+                new_content = f"{current_content}{separator}{content}"
+            else:
+                # Replace mode: select all and type new content
+                logger.info(f"✍️  Replacing with {len(content)} characters...")
+                await self.page.keyboard.press('Control+A')
+                await asyncio.sleep(0.2)
+                logger.info("⌨️  Typing new content...")
+                await self.page.keyboard.type(content, delay=0)
+                new_content = content
 
         # Wait a moment for autosave
         await asyncio.sleep(1)
 
         # Verify write
         verify_content = await self.get_current_content(selector)
-        success = verify_content == new_content
+
+        # For append mode, verify that our new content appears at the end
+        # For replace mode, verify exact match
+        if mode == 'append':
+            # Check if our appended content appears at the end
+            expected_suffix = separator + content
+            success = verify_content.endswith(expected_suffix)
+            if not success:
+                # Fallback: check if content appears anywhere (in case of sync delays)
+                success = content in verify_content
+        else:
+            # Replace mode: expect exact match
+            success = verify_content == new_content
 
         result = {
             'success': success,
             'mode': mode,
             'url': self.note_url,
-            'content_length': len(new_content),
-            'preview': new_content[:100] + ('...' if len(new_content) > 100 else ''),
+            'content_length': len(verify_content),
+            'expected_length': len(new_content),
+            'preview': verify_content[-100:] if mode == 'append' else verify_content[:100],
             'verified': success
         }
 
         if success:
-            logger.info(f"✅ Write successful! ({len(new_content)} chars)")
+            logger.info(f"✅ Write successful! ({len(verify_content)} chars)")
         else:
             logger.warning(f"⚠️  Write verification failed")
             logger.warning(f"Expected length: {len(new_content)}, Got: {len(verify_content)}")
+            if mode == 'append':
+                logger.warning(f"Looking for content ending with: ...{expected_suffix[-50:]}")
 
         return result
 

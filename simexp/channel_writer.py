@@ -22,9 +22,36 @@ def load_channels():
 CHANNELS = load_channels()
 
 
+async def write_to_note_with_switch(note_url: str, content: str, note_id: str, mode: str, cdp_url: str):
+    """Helper to write to a specific note using its note ID"""
+    from .playwright_writer import SimplenoteWriter
+    import logging
+    logger = logging.getLogger(__name__)
+
+    async with SimplenoteWriter('https://app.simplenote.com', cdp_url=cdp_url, debug=True) as writer:
+        await writer.navigate()
+        logger.info(f"📍 Current URL before hash change: {writer.page.url}")
+
+        await asyncio.sleep(2)
+
+        # Use JavaScript to navigate to the specific note
+        logger.info(f"🔄 Setting hash to: note/{note_id}")
+        await writer.page.evaluate(f"window.location.hash = 'note/{note_id}'")
+
+        await asyncio.sleep(5)  # Wait for note to load after hash change
+
+        logger.info(f"📍 Current URL after hash change: {writer.page.url}")
+        logger.info(f"📍 Current hash: {await writer.page.evaluate('window.location.hash')}")
+
+        # Write content (skip navigation since we already navigated)
+        return await writer.write_content(content, mode=mode, skip_navigation=True)
+
+
 def write_to_aureon(content: str, cdp_url: str = 'http://localhost:9223', mode: str = 'append'):
     """
     Write to Aureon 🌿 - Mirror Weaver communication channel
+
+    Navigates directly to Aureon's note and writes there.
 
     Args:
         content: Message content
@@ -35,9 +62,10 @@ def write_to_aureon(content: str, cdp_url: str = 'http://localhost:9223', mode: 
         dict with write result
     """
     formatted_content = f"🌿 {content}"
-    return asyncio.run(write_to_note(
+    return asyncio.run(write_to_note_with_switch(
         CHANNELS['Aureon']['auth_url'],
         formatted_content,
+        note_id=CHANNELS['Aureon']['note_id'],  # Direct navigation via note_id
         mode=mode,
         cdp_url=cdp_url
     ))
@@ -46,6 +74,8 @@ def write_to_aureon(content: str, cdp_url: str = 'http://localhost:9223', mode: 
 def write_to_nyro(content: str, cdp_url: str = 'http://localhost:9223', mode: str = 'append'):
     """
     Write to Nyro ♠️ - Ritual Scribe communication channel
+
+    Navigates directly to Nyro's note and writes there.
 
     Args:
         content: Message content (structural/technical logs)
@@ -56,9 +86,10 @@ def write_to_nyro(content: str, cdp_url: str = 'http://localhost:9223', mode: st
         dict with write result
     """
     formatted_content = f"♠️ {content}"
-    return asyncio.run(write_to_note(
+    return asyncio.run(write_to_note_with_switch(
         CHANNELS['Nyro']['auth_url'],
         formatted_content,
+        note_id=CHANNELS['Nyro']['note_id'],  # Direct navigation via note_id
         mode=mode,
         cdp_url=cdp_url
     ))
@@ -67,6 +98,8 @@ def write_to_nyro(content: str, cdp_url: str = 'http://localhost:9223', mode: st
 def write_to_jamai(content: str, cdp_url: str = 'http://localhost:9223', mode: str = 'append'):
     """
     Write to JamAI 🎸 - Glyph Harmonizer communication channel
+
+    Navigates directly to JamAI's note and writes there.
 
     Args:
         content: Message content (musical/creative notes)
@@ -77,9 +110,10 @@ def write_to_jamai(content: str, cdp_url: str = 'http://localhost:9223', mode: s
         dict with write result
     """
     formatted_content = f"🎸 {content}"
-    return asyncio.run(write_to_note(
+    return asyncio.run(write_to_note_with_switch(
         CHANNELS['JamAI']['auth_url'],
         formatted_content,
+        note_id=CHANNELS['JamAI']['note_id'],  # Direct navigation via note_id
         mode=mode,
         cdp_url=cdp_url
     ))
