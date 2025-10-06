@@ -227,67 +227,83 @@ class SimplenoteWriter:
         # Find the editor element
         selector = await self.find_editor()
 
-        # Get current content if appending
+        # Get current content for verification
         current_content = ""
         if mode == 'append':
             current_content = await self.get_current_content(selector)
             logger.info(f"📄 Current content length: {len(current_content)} chars")
-
-        # Construct new content
-        if mode == 'append' and current_content:
-            new_content = f"{current_content}{separator}{content}"
-        else:
-            new_content = content
-
-        # Write to editor
-        logger.info(f"✍️  Writing {len(new_content)} characters...")
 
         # Different approaches for different editor types
         element = await self.page.query_selector(selector)
         tag_name = await element.evaluate('el => el.tagName.toLowerCase()')
 
         if tag_name in ['textarea', 'input']:
-            # Standard form elements
+            # Standard form elements - can use fill()
+            if mode == 'append' and current_content:
+                new_content = f"{current_content}{separator}{content}"
+            else:
+                new_content = content
+            logger.info(f"✍️  Writing {len(new_content)} characters...")
             await self.page.fill(selector, new_content)
         else:
-            # ContentEditable div - need to use actual typing simulation
-            # First, click the element to focus it
+            # ContentEditable div - use keyboard simulation
             await element.click()
             await asyncio.sleep(0.5)
 
-            # Select all existing content and delete it if replacing
-            await self.page.keyboard.press('Control+A')
-
-            # Type the new content character by character (more reliable for Simplenote)
-            # For performance, we'll type in chunks
-            logger.info("⌨️  Typing content into editor...")
-            await self.page.keyboard.type(new_content, delay=0)
-
-            # Alternative: Use clipboard paste (faster for large content)
-            # await self.page.evaluate(f"navigator.clipboard.writeText({json.dumps(new_content)})")
-            # await self.page.keyboard.press('Control+V')
+            if mode == 'append':
+                # Append mode: go to end and type only new content
+                # ⚡ PERFORMANCE OPTIMIZATION: Types only new content instead of entire note
+                logger.info(f"✍️  Appending {len(separator) + len(content)} characters...")
+                await self.page.keyboard.press('Control+End')  # Go to end
+                await asyncio.sleep(0.2)
+                logger.info("⌨️  Typing separator and new content...")
+                await self.page.keyboard.type(separator + content, delay=0)
+                new_content = f"{current_content}{separator}{content}"
+            else:
+                # Replace mode: select all and type new content
+                logger.info(f"✍️  Replacing with {len(content)} characters...")
+                await self.page.keyboard.press('Control+A')
+                await asyncio.sleep(0.2)
+                logger.info("⌨️  Typing new content...")
+                await self.page.keyboard.type(content, delay=0)
+                new_content = content
 
         # Wait a moment for autosave
         await asyncio.sleep(1)
 
         # Verify write
         verify_content = await self.get_current_content(selector)
-        success = verify_content == new_content
+
+        # For append mode, verify that our new content appears at the end
+        # For replace mode, verify exact match
+        if mode == 'append':
+            # Check if our appended content appears at the end
+            expected_suffix = separator + content
+            success = verify_content.endswith(expected_suffix)
+            if not success:
+                # Fallback: check if content appears anywhere (in case of sync delays)
+                success = content in verify_content
+        else:
+            # Replace mode: expect exact match
+            success = verify_content == new_content
 
         result = {
             'success': success,
             'mode': mode,
             'url': self.note_url,
-            'content_length': len(new_content),
-            'preview': new_content[:100] + ('...' if len(new_content) > 100 else ''),
+            'content_length': len(verify_content),
+            'expected_length': len(new_content),
+            'preview': verify_content[-100:] if mode == 'append' else verify_content[:100],
             'verified': success
         }
 
         if success:
-            logger.info(f"✅ Write successful! ({len(new_content)} chars)")
+            logger.info(f"✅ Write successful! ({len(verify_content)} chars)")
         else:
             logger.warning(f"⚠️  Write verification failed")
             logger.warning(f"Expected length: {len(new_content)}, Got: {len(verify_content)}")
+            if mode == 'append':
+                logger.warning(f"Looking for content ending with: ...{expected_suffix[-50:]}")
 
         return result
 
