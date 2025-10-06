@@ -159,16 +159,50 @@ if __name__ == "__main__":
             note_url = sys.argv[2]
             read_command(note_url, headless=True)
 
+        elif command == 'channel':
+            # Usage: simexp channel <aureon|nyro|jamai> <message>
+            if len(sys.argv) < 4:
+                print("Usage: simexp channel <aureon|nyro|jamai> <message>")
+                print("\nAvailable channels:")
+                print("  aureon - 🌿 Aureon (Mirror Weaver): Reflective/emotional content")
+                print("  nyro   - ♠️ Nyro (Ritual Scribe): Structural/technical logs")
+                print("  jamai  - 🎸 JamAI (Glyph Harmonizer): Musical/creative notes")
+                sys.exit(1)
+
+            channel_name = sys.argv[2].lower()
+            content = sys.argv[3]
+
+            from .channel_writer import write_to_channel
+
+            print(f"♠️🌿🎸🧵 Writing to {channel_name} channel...")
+
+            result = write_to_channel(channel_name, content)
+
+            if result['success']:
+                print(f"✅ Message written to {channel_name}!")
+                print(f"📊 {result['content_length']} characters")
+            else:
+                print(f"❌ Write failed")
+                sys.exit(1)
+
         elif command == 'help' or command == '--help' or command == '-h':
             print("♠️🌿🎸🧵 SimExp - Simplenote Web Content Extractor & Writer")
             print("\nCommands:")
-            print("  simexp                    - Run extraction from clipboard/config")
-            print("  simexp init              - Initialize configuration")
-            print("  simexp write <url> [msg] - Write to Simplenote note")
-            print("  simexp read <url>        - Read from Simplenote note")
-            print("  simexp help              - Show this help")
+            print("  simexp                      - Run extraction from clipboard/config")
+            print("  simexp init                 - Initialize configuration")
+            print("  simexp write <url> [msg]    - Write to Simplenote note")
+            print("  simexp read <url>           - Read from Simplenote note")
+            print("  simexp channel <name> <msg> - Write to Assembly channel")
+            print("  simexp help                 - Show this help")
+            print("\nChannels:")
+            print("  aureon - 🌿 Reflective/emotional")
+            print("  nyro   - ♠️ Structural/technical")
+            print("  jamai  - 🎸 Musical/creative")
             print("\nExamples:")
             print("  simexp write https://app.simplenote.com/p/0ZqWsQ 'Hello!'")
+            print("  simexp channel aureon 'Feeling grateful today'")
+            print("  simexp channel nyro 'Discovered new pattern in DOM'")
+            print("  simexp channel jamai 'Session in key of D, tempo 88'")
             print("  echo 'Message' | simexp write https://app.simplenote.com/p/0ZqWsQ")
             print("  simexp read https://app.simplenote.com/p/0ZqWsQ")
 

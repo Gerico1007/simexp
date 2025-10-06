@@ -180,6 +180,47 @@ print(content)
 
 ---
 
+### Multi-Channel Communication (Assembly Perspectives)
+
+Write to specific Assembly perspective channels for organized multi-perspective journaling:
+
+**🌿 Aureon** - Emotional/reflective content:
+```bash
+python -m simexp.simex channel aureon "Feeling grateful for cross-device fluidity"
+```
+
+**♠️ Nyro** - Structural/technical logs:
+```bash
+python -m simexp.simex channel nyro "Discovered keyboard simulation solves persistence"
+```
+
+**🎸 JamAI** - Musical/creative notes:
+```bash
+python -m simexp.simex channel jamai "Session melody: key of D, tempo 88bpm"
+```
+
+**Python API:**
+```python
+from simexp.channel_writer import write_to_aureon, write_to_nyro, write_to_jamai
+
+# Emotional reflection
+write_to_aureon("Cross-device sync feels magical 🌿")
+
+# Technical log
+write_to_nyro("♠️ Pattern: keyboard simulation > textContent for persistence")
+
+# Musical note
+write_to_jamai("🎸 ABC notation: X:1 T:Session Flow K:Gmaj")
+```
+
+**How it works:**
+- Each channel adds a perspective marker (♠️🌿🎸) to your message
+- Messages write to whichever Simplenote note is currently open in Chrome
+- This allows multi-perspective journaling within any note
+- Perfect for Assembly-style documentation and reflection
+
+---
+
 ## 🔧 Configuration
 
 ### simexp/simexp.yaml
@@ -192,14 +233,28 @@ SOURCES:
   - filename: note1
     url: https://app.simplenote.com/p/0ZqWsQ
 
-# NEW: Communication channels for cross-device messaging
+# NEW: Communication channels for Assembly perspectives
 COMMUNICATION_CHANNELS:
   - name: Aureon
     note_id: e6702a7b90e64aae99df2fba1662bb81
     public_url: https://app.simplenote.com/p/gk6V2v
     auth_url: https://app.simplenote.com
     mode: bidirectional
-    description: "🌿 Main communication channel"
+    description: "🌿 Aureon - Mirror Weaver communication channel"
+
+  - name: Nyro
+    note_id: 537e286d32eb4d04984229a87a185d07
+    public_url: https://app.simplenote.com/p/PX10PW
+    auth_url: https://app.simplenote.com
+    mode: bidirectional
+    description: "♠️ Nyro - Ritual Scribe structural channel"
+
+  - name: JamAI
+    note_id: 0d75b81843f14fc7877eb9dc4d0b26f0
+    public_url: https://app.simplenote.com/p/D6QjzK
+    auth_url: https://app.simplenote.com
+    mode: bidirectional
+    description: "🎸 JamAI - Glyph Harmonizer musical channel"
 ```
 
 ---
