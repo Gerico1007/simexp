@@ -1,0 +1,61 @@
+BASE_PATH: ./output
+SOURCES:
+- filename: 0ZqWsQ
+  url: https://app.simplenote.com/p/0ZqWsQ
+- filename: CM5YYV
+  url: https://app.simplenote.com/p/CM5YYV
+
+# Communication Channels for Cross-Device Flow
+# Multi-Provider Support: Simplenote (browser) OR Google Docs (API)
+COMMUNICATION_CHANNELS:
+  # Simplenote Channels (browser-based)
+  - name: Aureon
+    provider: simplenote  # Browser-based via Playwright
+    note_id: YOUR_NOTE_ID_HERE
+    public_url: https://app.simplenote.com/p/XXXXX
+    auth_url: https://app.simplenote.com
+    protocol_url: simplenote://note/YOUR_NOTE_ID_HERE
+    mode: bidirectional
+    description: "🌿 Aureon - Mirror Weaver communication channel"
+
+  - name: Nyro
+    provider: simplenote  # Browser-based via Playwright
+    note_id: YOUR_NOTE_ID_HERE
+    public_url: https://app.simplenote.com/p/XXXXX
+    auth_url: https://app.simplenote.com
+    protocol_url: simplenote://note/YOUR_NOTE_ID_HERE
+    mode: bidirectional
+    description: "♠️ Nyro - Ritual Scribe structural channel"
+
+  - name: JamAI
+    provider: simplenote  # Browser-based via Playwright
+    note_id: YOUR_NOTE_ID_HERE
+    public_url: https://app.simplenote.com/p/XXXXX
+    auth_url: https://app.simplenote.com
+    protocol_url: simplenote://note/YOUR_NOTE_ID_HERE
+    mode: bidirectional
+    description: "🎸 JamAI - Glyph Harmonizer musical channel"
+
+  # Google Docs Channels (API-based)
+  # Uncomment and configure these when you have Google Cloud credentials
+  #
+  # - name: AureonDocs
+  #   provider: googledocs  # API-based (instant writes!)
+  #   document_id: YOUR_GOOGLE_DOC_ID_HERE  # From URL: docs.google.com/document/d/{ID}/edit
+  #   credentials_path: ./credentials/service-account.json
+  #   mode: bidirectional
+  #   description: "🌿 Aureon - Google Docs API channel"
+  #
+  # - name: NyroDocs
+  #   provider: googledocs  # API-based (instant writes!)
+  #   document_id: YOUR_GOOGLE_DOC_ID_HERE
+  #   credentials_path: ./credentials/service-account.json
+  #   mode: bidirectional
+  #   description: "♠️ Nyro - Google Docs API channel"
+  #
+  # - name: JamAIDocs
+  #   provider: googledocs  # API-based (instant writes!)
+  #   document_id: YOUR_GOOGLE_DOC_ID_HERE
+  #   credentials_path: ./credentials/service-account.json
+  #   mode: bidirectional
+  #   description: "🎸 JamAI - Google Docs API channel"

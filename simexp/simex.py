@@ -159,18 +159,107 @@ if __name__ == "__main__":
             note_url = sys.argv[2]
             read_command(note_url, headless=True)
 
+        elif command == 'gdocs-write':
+            # Usage: simexp gdocs-write <doc_id> <content> [credentials_path]
+            if len(sys.argv) < 4:
+                print("Usage: simexp gdocs-write <document_id> <content> [credentials_path]")
+                print("If credentials_path not provided, defaults to ./credentials/service-account.json")
+                sys.exit(1)
+
+            from .googledocs_writer import write_to_googledoc
+
+            doc_id = sys.argv[2]
+            content = sys.argv[3]
+            creds_path = sys.argv[4] if len(sys.argv) > 4 else './credentials/service-account.json'
+
+            print(f"♠️🌿🎸🧵 SimExp Google Docs Write Mode")
+            print(f"📄 Document ID: {doc_id}")
+            print(f"🔑 Credentials: {creds_path}")
+
+            result = write_to_googledoc(doc_id, content, creds_path, mode='append')
+
+            if result.get('success'):
+                print(f"\n✅ Write successful!")
+                print(f"📊 Written: {result.get('content_length', 'Unknown')} characters")
+                print(f"📝 Preview: {result.get('preview', '')}")
+            else:
+                print(f"\n❌ Write failed: {result.get('error', 'Unknown error')}")
+                sys.exit(1)
+
+        elif command == 'gdocs-read':
+            # Usage: simexp gdocs-read <doc_id> [credentials_path]
+            if len(sys.argv) < 3:
+                print("Usage: simexp gdocs-read <document_id> [credentials_path]")
+                print("If credentials_path not provided, defaults to ./credentials/service-account.json")
+                sys.exit(1)
+
+            from .googledocs_writer import read_from_googledoc
+
+            doc_id = sys.argv[2]
+            creds_path = sys.argv[3] if len(sys.argv) > 3 else './credentials/service-account.json'
+
+            print(f"♠️🌿🎸🧵 SimExp Google Docs Read Mode")
+            print(f"📄 Document ID: {doc_id}")
+            print(f"🔑 Credentials: {creds_path}")
+
+            content = read_from_googledoc(doc_id, creds_path)
+
+            print(f"\n📖 Content ({len(content)} chars):")
+            print("=" * 60)
+            print(content)
+            print("=" * 60)
+
+        elif command == 'channel':
+            # Usage: simexp channel <channel_name> <message>
+            if len(sys.argv) < 4:
+                from .channel_writer import list_channels
+
+                print("Usage: simexp channel <channel_name> <message>")
+                print("\nAvailable channels:")
+                for ch in list_channels():
+                    print(f"  {ch['name']} ({ch['provider']}): {ch['description']}")
+                sys.exit(1)
+
+            from .channel_writer import write_to_channel
+
+            channel_name = sys.argv[2].lower()
+            content = sys.argv[3]
+
+            print(f"♠️🌿🎸🧵 Writing to {channel_name} channel...")
+
+            result = write_to_channel(channel_name, content)
+
+            if result.get('success'):
+                print(f"✅ Message written to {channel_name}!")
+                print(f"📊 {result.get('content_length', 'Unknown')} characters")
+            else:
+                print(f"❌ Write failed: {result.get('error', 'Unknown error')}")
+                sys.exit(1)
+
         elif command == 'help' or command == '--help' or command == '-h':
-            print("♠️🌿🎸🧵 SimExp - Simplenote Web Content Extractor & Writer")
+            print("♠️🌿🎸🧵 SimExp - Multi-Provider Content Extractor & Writer")
             print("\nCommands:")
-            print("  simexp                    - Run extraction from clipboard/config")
-            print("  simexp init              - Initialize configuration")
-            print("  simexp write <url> [msg] - Write to Simplenote note")
-            print("  simexp read <url>        - Read from Simplenote note")
-            print("  simexp help              - Show this help")
+            print("  simexp                           - Run extraction from clipboard/config")
+            print("  simexp init                      - Initialize configuration")
+            print("  simexp write <url> [msg]         - Write to Simplenote note")
+            print("  simexp read <url>                - Read from Simplenote note")
+            print("  simexp gdocs-write <id> <msg>    - Write to Google Docs document")
+            print("  simexp gdocs-read <id>           - Read from Google Docs document")
+            print("  simexp channel <name> <msg>      - Write to Assembly channel (any provider)")
+            print("  simexp help                      - Show this help")
             print("\nExamples:")
+            print("  # Simplenote")
             print("  simexp write https://app.simplenote.com/p/0ZqWsQ 'Hello!'")
-            print("  echo 'Message' | simexp write https://app.simplenote.com/p/0ZqWsQ")
             print("  simexp read https://app.simplenote.com/p/0ZqWsQ")
+            print()
+            print("  # Google Docs")
+            print("  simexp gdocs-write 1abc123xyz 'Message' ./credentials/service-account.json")
+            print("  simexp gdocs-read 1abc123xyz")
+            print()
+            print("  # Multi-Provider Channels")
+            print("  simexp channel aureon 'Emotional reflection'")
+            print("  simexp channel nyro 'Structural insight'")
+            print("  simexp channel jamai 'Musical encoding'")
 
         else:
             print(f"Unknown command: {command}")
