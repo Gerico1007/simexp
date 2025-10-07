@@ -1,20 +1,22 @@
-# 🌊 SimExp - Simplenote Web Content Extractor & Writer
+# 🌊 SimExp - Multi-Provider Content Writer & Extractor
 **Cross-Device Fluidity: Terminal ↔ Web Communication**
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Google Docs API](https://img.shields.io/badge/Google%20Docs-API%20v1-4285F4?logo=google-docs)](https://developers.google.com/docs/api)
 [![License](https://img.shields.io/badge/license-Open%20Assembly-green.svg)]()
 
 ---
 
 ## 🎯 What is SimExp?
 
-SimExp is a bidirectional communication tool that bridges terminals and Simplenote web pages:
+SimExp is a bidirectional communication tool that bridges terminals with **Simplenote** and **Google Docs**:
 
 1. **📖 Extract**: Fetch and archive web content from Simplenote URLs
-2. **✍️ Write**: Send messages from terminal directly to Simplenote notes
-3. **🌊 Sync**: Enable cross-device communication through Simplenote's cloud
+2. **✍️ Write**: Send messages from terminal to Simplenote (browser) OR Google Docs (API)
+3. **🌊 Sync**: Enable cross-device communication through cloud sync
+4. **⚡ Instant API**: Write to Google Docs in < 1 second (no browser needed!)
 
-**Key Achievement**: **Terminal-to-Web fluidity** - Your terminal can now speak to web pages and sync across all your devices!
+**Key Achievement**: **Multi-provider communication** - Choose Simplenote's simplicity OR Google's speed!
 
 ---
 
@@ -49,7 +51,40 @@ asyncio.run(write_to_note(
 # 6. Check from your phone - it synced! ✨
 ```
 
-**👉 [Full Cross-Device Setup Guide](README_CROSS_DEVICE_FLUIDITY.md)**
+**👉 [Full Simplenote Setup Guide](README_CROSS_DEVICE_FLUIDITY.md)**
+
+### NEW: Google Docs API (Instant Writes!)
+
+```bash
+# 1. Install Google API dependencies
+pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+
+# 2. Set up Google Cloud service account (one-time, ~10 min)
+#    See: QUICKSTART_GOOGLEDOCS.md
+
+# 3. Write to Google Docs instantly!
+python -m simexp.simex gdocs-write YOUR_DOC_ID "Hello from API!" ./credentials/service-account.json
+
+# 4. Or use channel command (works for both Simplenote AND Google Docs!)
+python -m simexp.simex channel mychannel "Message here"
+```
+
+**👉 [Quick Start: Google Docs](QUICKSTART_GOOGLEDOCS.md)** | **👉 [Full Google Docs Guide](README_GOOGLEDOCS.md)**
+
+---
+
+## 📊 Provider Comparison
+
+| Feature | Simplenote | Google Docs |
+|---------|------------|-------------|
+| **Speed** | ~10 seconds | **< 1 second** ⚡ |
+| **Setup** | Open Chrome with CDP | One-time OAuth |
+| **Browser** | Must stay open | **Not needed** |
+| **Method** | Keyboard simulation | **REST API** |
+| **Formatting** | Plain text | Rich text ready |
+| **Rate Limits** | None | 300 req/min |
+
+**Use both!** Configure some channels with Simplenote, others with Google Docs.
 
 ---
 

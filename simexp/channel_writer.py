@@ -53,9 +53,14 @@ def write_to_channel(
     Raises:
         ValueError: If channel name is invalid or provider unsupported
     """
-    channel_name_key = channel_name.capitalize()
+    # Case-insensitive channel lookup
+    channel_name_key = None
+    for key in CHANNELS.keys():
+        if key.lower() == channel_name.lower():
+            channel_name_key = key
+            break
 
-    if channel_name_key not in CHANNELS:
+    if not channel_name_key:
         raise ValueError(
             f"Unknown channel: {channel_name}. "
             f"Valid channels: {', '.join(CHANNELS.keys())}"
@@ -160,9 +165,14 @@ def read_from_channel(
     Returns:
         Channel content as string
     """
-    channel_name_key = channel_name.capitalize()
+    # Case-insensitive channel lookup
+    channel_name_key = None
+    for key in CHANNELS.keys():
+        if key.lower() == channel_name.lower():
+            channel_name_key = key
+            break
 
-    if channel_name_key not in CHANNELS:
+    if not channel_name_key:
         raise ValueError(
             f"Unknown channel: {channel_name}. "
             f"Valid channels: {', '.join(CHANNELS.keys())}"

@@ -93,3 +93,4 @@ build/
 !sessionABC/.gitkeep
 !ledger/.gitkeep
 !output/.gitkeep
+credentials/*.json
