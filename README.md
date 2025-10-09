@@ -18,36 +18,71 @@ SimExp is a bidirectional communication tool that bridges terminals and Simpleno
 
 ---
 
-## 🚀 Quick Start
+## 📦 Installation
 
-### For Terminal-to-Web Writing (The Cool New Feature!)
+### 1. Prerequisites
+
+*   Python 3.8+
+*   Google Chrome or Chromium
+*   A Simplenote account (free at https://simplenote.com)
+
+### 2. Install Dependencies
 
 ```bash
-# 1. Install dependencies
+# Core dependencies
+pip install playwright pyperclip beautifulsoup4 pyyaml requests
+
+# Install Playwright browsers
+playwright install chromium
+```
+
+### 3. Launch the Chrome Communication Bridge
+
+For `simexp` to communicate with your browser, you need to launch a special instance of Chrome with a remote debugging port. **You only need to do this once.**
+
+```bash
+# Launch Chrome with a remote debugging port
+google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
+```
+
+*   `--remote-debugging-port=9223`: This opens a communication channel that `simexp` uses to connect to your browser.
+*   `--user-data-dir=/tmp/chrome-simexp`: This creates a separate profile for this Chrome instance, so it doesn't interfere with your main browsing session.
+*   `&`: This runs the command in the background, so you can continue to use your terminal.
+
+In the new Chrome window that opens, log in to your Simplenote account: https://app.simplenote.com
+
+---
+
+## 🚀 Quick Start
+
+### 1. Launch Chrome for Communication
+
+First, you need to launch a special instance of Google Chrome that the script can communicate with. **You only need to do this once.**
+
+```bash
+# Launch Chrome with a remote debugging port
+google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
+```
+
+In the new Chrome window that opens, log in to your Simplenote account: https://app.simplenote.com
+
+### 2. Install SimExp
+
+```bash
+# Install dependencies
 pip install playwright pyperclip beautifulsoup4 pyyaml requests
 playwright install chromium
-
-# 2. Launch Chrome with remote debugging
-google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
-
-# 3. Login to Simplenote in the Chrome window that opens
-# Go to: https://app.simplenote.com
-
-# 4. Write from terminal to Simplenote!
-python3 -c "
-import asyncio
-from simexp.playwright_writer import write_to_note
-
-asyncio.run(write_to_note(
-    'https://app.simplenote.com',
-    'Hello from terminal! 🌊',
-    cdp_url='http://localhost:9223'
-))
-"
-
-# 5. Check your Simplenote note - the message is there!
-# 6. Check from your phone - it synced! ✨
 ```
+
+### 3. Write to Your Last Modified Note!
+
+Now you can write to your most recently modified Simplenote note directly from your terminal:
+
+```bash
+python -m simexp.simex write "Hello from the Assembly!" --cdp-url http://localhost:9223
+```
+
+Check your Simplenote note - the message is there! It will also sync to your other devices. ✨
 
 **👉 [Full Cross-Device Setup Guide](README_CROSS_DEVICE_FLUIDITY.md)**
 
@@ -114,6 +149,28 @@ playwright install chromium
 
 ## 🎮 Usage
 
+### Write to the Last Modified Note
+
+This is the easiest way to use `simexp`. It will automatically find your last modified note and append your message to it.
+
+```bash
+python -m simexp.simex write "Your message here" --cdp-url http://localhost:9223
+```
+
+### Write to a Specific Note
+
+If you need to write to a specific note, you can provide its URL.
+
+```bash
+python -m simexp.simex write "Your message here" --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9223
+```
+
+### Read from a Specific Note
+
+```bash
+python -m simexp.simex read --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9223
+```
+
 ### Extract Content from Simplenote URLs
 
 ```bash
@@ -124,58 +181,6 @@ playwright install chromium
 python -m simexp.simex
 
 # Content saved to ./output/YYYYMMDD/filename.md
-```
-
----
-
-### Write from Terminal to Simplenote
-
-**Method 1: Python Script**
-
-```python
-import asyncio
-from simexp.playwright_writer import write_to_note
-
-# Write a message
-result = asyncio.run(write_to_note(
-    note_url='https://app.simplenote.com',
-    content='Your message here!',
-    mode='append',  # or 'replace'
-    cdp_url='http://localhost:9223'
-))
-
-print(f"Success: {result['success']}")
-```
-
-**Method 2: One-Liner**
-
-```bash
-python3 -c "import asyncio; from simexp.playwright_writer import write_to_note; asyncio.run(write_to_note('https://app.simplenote.com', 'Quick message!', cdp_url='http://localhost:9223'))"
-```
-
-**Method 3: Bash Alias** (add to ~/.bashrc)
-
-```bash
-alias simwrite='python3 -c "import asyncio; from simexp.playwright_writer import write_to_note; asyncio.run(write_to_note(\"https://app.simplenote.com\", \"'\''\$1'\''\", cdp_url=\"http://localhost:9223\"))"'
-
-# Then use it:
-simwrite "Message from terminal!"
-```
-
----
-
-### Read from Simplenote
-
-```python
-import asyncio
-from simexp.playwright_writer import read_from_note
-
-content = asyncio.run(read_from_note(
-    note_url='https://app.simplenote.com',
-    cdp_url='http://localhost:9223'
-))
-
-print(content)
 ```
 
 ---
