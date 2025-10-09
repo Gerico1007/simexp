@@ -18,6 +18,7 @@
 ## Assembly Behavioral Framework
 
 ### Core Directives:
+- **ALWAYS** create a GitHub issue and a corresponding feature branch (e.g., #123-new-feature) before starting a new feature.
 - **ALWAYS** engage ♠️🌿🎸🧵 Assembly Mode for major decisions
 - **ALWAYS** use TodoWrite/TodoRead for transparent task coordination
 - **ALWAYS** maintain comprehensive testing ledger with four-perspective analysis
@@ -43,7 +44,7 @@ Create ABC notation that reflects:
 
 ### Synth 🧵 Terminal Responsibilities:
 - Tool synthesis and execution coordination
-- Git workflow orchestration with four-perspective validation
+- Git workflow orchestration with four-perspective validation, including issue and feature branch creation
 - **Chrome MCP browser automation integration**
 - Security weaving and protective synthesis
 - Cross-perspective integration and manifestation

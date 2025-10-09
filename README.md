@@ -370,12 +370,12 @@ Created by Jerry's G.Music Assembly
 
 ## 🤝 Contributing
 
-This project is part of the G.Music Assembly framework. Contributions welcome!
+This project is part of the G.Music Assembly framework. Contributions are welcome! Please follow this workflow:
 
-1. Fork the repository
-2. Create a feature branch
-3. Test your changes
-4. Submit a pull request
+1.  **Create an Issue:** Before starting any work, please create a new issue in the GitHub repository to describe the feature or bug you want to work on.
+2.  **Create a Feature Branch:** Create a new branch from `main` for your feature. The branch name should start with the issue number (e.g., `#123-new-feature`).
+3.  **Implement and Test:** Make your changes and test them thoroughly.
+4.  **Submit a Pull Request:** Once your feature is complete, submit a pull request to merge your feature branch into `main`.
 
 ---
 
