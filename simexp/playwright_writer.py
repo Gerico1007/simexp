@@ -152,6 +152,18 @@ class SimplenoteWriter:
         await self.page.wait_for_load_state('networkidle', timeout=self.timeout)
         logger.info("✅ Page loaded")
 
+        # If the URL is the base URL, click the first note
+        if self.note_url == "https://app.simplenote.com/":
+            logger.info("🔍 Base URL detected, finding most recent note...")
+            try:
+                first_note_selector = "div.note-list-item"
+                await self.page.wait_for_selector(first_note_selector, timeout=10000)
+                await self.page.click(first_note_selector)
+                logger.info("✅ Clicked on the most recent note.")
+                await self.page.wait_for_load_state('networkidle', timeout=self.timeout)
+            except PlaywrightTimeout:
+                raise Exception("Could not find the note list. Are you logged in?")
+
     async def find_editor(self) -> str:
         """
         Find the editor element using multiple selector strategies

@@ -28,7 +28,7 @@ def init_config():
     print("Configuration saved to simexp.yaml")
 
 
-def write_command(note_url, content=None, mode='append', headless=False):
+def write_command(note_url, content=None, mode='append', headless=False, cdp_url=None):
     """
     Write content to Simplenote note via Playwright
 
@@ -37,6 +37,7 @@ def write_command(note_url, content=None, mode='append', headless=False):
         content: Content to write (if None, read from stdin)
         mode: 'append' or 'replace'
         headless: Run browser in headless mode
+        cdp_url: Chrome DevTools Protocol URL
     """
     import sys
 
@@ -58,7 +59,8 @@ def write_command(note_url, content=None, mode='append', headless=False):
         content=content,
         mode=mode,
         headless=headless,
-        debug=True
+        debug=True,
+        cdp_url=cdp_url
     ))
 
     if result['success']:
@@ -140,15 +142,19 @@ if __name__ == "__main__":
             init_config()
 
         elif command == 'write':
-            # Usage: simexp write <note_url> [content]
-            if len(sys.argv) < 3:
-                print("Usage: simexp write <note_url> [content]")
-                print("If content not provided, will read from stdin")
-                sys.exit(1)
+            import argparse
+            parser = argparse.ArgumentParser(
+                description='Write content to a Simplenote note.',
+                prog='simexp write')
+            parser.add_argument('content', help='The content to write. If not provided, reads from stdin.')
+            parser.add_argument('--note-url', default='https://app.simplenote.com/', help='The URL of the Simplenote note. Defaults to the main page, which will select the most recent note.')
+            parser.add_argument('--mode', choices=['append', 'replace'], default='append', help='Write mode.')
+            parser.add_argument('--headless', action='store_true', help='Run in headless mode.')
+            parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL to connect to an existing browser.')
+            
+            args = parser.parse_args(sys.argv[2:])
 
-            note_url = sys.argv[2]
-            content = sys.argv[3] if len(sys.argv) > 3 else None
-            write_command(note_url, content, mode='append', headless=False)
+            write_command(args.note_url, args.content, mode=args.mode, headless=args.headless, cdp_url=args.cdp_url)
 
         elif command == 'read':
             # Usage: simexp read <note_url>
