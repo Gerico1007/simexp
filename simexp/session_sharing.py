@@ -52,34 +52,61 @@ async def publish_note(
         if debug:
             print(f"🌐 Publishing note...")
 
-        # Common Simplenote publish button selectors
-        publish_selectors = [
-            'button[aria-label*="Publish"]',
-            'button[title*="Publish"]',
-            'button:has-text("Publish")',
-            '[data-action="publish"]',
-            '.publish-button',
-            'button[aria-label*="Share"]',
-            'button:has-text("Share")',
+        # Step 1: Find and click ellipsis menu (⋯)
+        ellipsis_selectors = [
+            'button[aria-label*="Actions"]',
+            'button[aria-label*="More"]',
+            'button[title*="Actions"]',
+            'button[title*="More"]',
+            'button:has-text("⋯")',
+            'button:has-text("...")',
+            '.icon-ellipsis',
+            '.actions-button',
+            '[data-testid="note-actions"]',
         ]
 
-        # Try to find and click publish button
-        publish_button = None
-        for selector in publish_selectors:
+        ellipsis_button = None
+        for selector in ellipsis_selectors:
             try:
-                publish_button = await page.wait_for_selector(selector, timeout=2000)
-                if publish_button:
+                ellipsis_button = await page.wait_for_selector(selector, timeout=2000)
+                if ellipsis_button:
                     if debug:
-                        print(f"✅ Found publish button: {selector}")
-                    await publish_button.click()
+                        print(f"✅ Found ellipsis menu: {selector}")
+                    await ellipsis_button.click()
                     await asyncio.sleep(1)
                     break
             except:
                 continue
 
-        if not publish_button:
-            print("❌ Could not find publish button")
-            print("💡 Note: Simplenote may not have publish feature, or selectors need updating")
+        if not ellipsis_button:
+            print("❌ Could not find ellipsis menu (⋯)")
+            return None
+
+        # Step 2: Find and click "Publish" option in menu
+        publish_selectors = [
+            'button:has-text("Publish")',
+            'a:has-text("Publish")',
+            '[role="menuitem"]:has-text("Publish")',
+            'li:has-text("Publish")',
+            '.menu-item:has-text("Publish")',
+        ]
+
+        publish_option = None
+        for selector in publish_selectors:
+            try:
+                publish_option = await page.wait_for_selector(selector, timeout=2000)
+                if publish_option:
+                    if debug:
+                        print(f"✅ Found publish option: {selector}")
+                    await publish_option.click()
+                    await asyncio.sleep(1)
+                    break
+            except:
+                continue
+
+        if not publish_option:
+            print("❌ Could not find 'Publish' option in menu")
+            print("💡 Note: Simplenote may not have publish feature, or menu changed")
             return None
 
         # Wait for publish to complete
@@ -207,34 +234,62 @@ async def add_collaborator(
         if debug:
             print(f"🤝 Adding collaborator: {email}")
 
-        # Common share/collaborate button selectors
-        share_selectors = [
-            'button[aria-label*="Share"]',
-            'button[aria-label*="Collaborate"]',
-            'button[title*="Share"]',
-            'button:has-text("Share")',
-            'button:has-text("Collaborate")',
-            '[data-action="share"]',
-            '.share-button',
+        # Step 1: Find and click ellipsis menu (⋯) in top right
+        ellipsis_selectors = [
+            'button[aria-label*="Actions"]',
+            'button[aria-label*="More"]',
+            'button[title*="Actions"]',
+            'button[title*="More"]',
+            'button:has-text("⋯")',
+            'button:has-text("...")',
+            '.icon-ellipsis',
+            '.actions-button',
+            '[data-testid="note-actions"]',
         ]
 
-        # Try to find and click share button
-        share_button = None
-        for selector in share_selectors:
+        ellipsis_button = None
+        for selector in ellipsis_selectors:
             try:
-                share_button = await page.wait_for_selector(selector, timeout=2000)
-                if share_button:
+                ellipsis_button = await page.wait_for_selector(selector, timeout=2000)
+                if ellipsis_button:
                     if debug:
-                        print(f"✅ Found share button: {selector}")
-                    await share_button.click()
+                        print(f"✅ Found ellipsis menu: {selector}")
+                    await ellipsis_button.click()
                     await asyncio.sleep(1)
                     break
             except:
                 continue
 
-        if not share_button:
-            print("❌ Could not find share button")
-            print("💡 Simplenote may not support collaboration, or UI has changed")
+        if not ellipsis_button:
+            print("❌ Could not find ellipsis menu (⋯)")
+            print("💡 Looking for: button with Actions/More or ⋯ symbol")
+            return False
+
+        # Step 2: Find and click "Collaborate" option in menu
+        collaborate_selectors = [
+            'button:has-text("Collaborate")',
+            'a:has-text("Collaborate")',
+            '[role="menuitem"]:has-text("Collaborate")',
+            'li:has-text("Collaborate")',
+            '.menu-item:has-text("Collaborate")',
+        ]
+
+        collaborate_option = None
+        for selector in collaborate_selectors:
+            try:
+                collaborate_option = await page.wait_for_selector(selector, timeout=2000)
+                if collaborate_option:
+                    if debug:
+                        print(f"✅ Found collaborate option: {selector}")
+                    await collaborate_option.click()
+                    await asyncio.sleep(1)
+                    break
+            except:
+                continue
+
+        if not collaborate_option:
+            print("❌ Could not find 'Collaborate' option in menu")
+            print("💡 Menu may have opened but 'Collaborate' not found")
             return False
 
         # Look for email input field
@@ -414,18 +469,41 @@ async def list_collaborators(
         if debug:
             print(f"👥 Listing collaborators...")
 
-        # First need to open share/collaborate panel
-        share_selectors = [
-            'button[aria-label*="Share"]',
-            'button[aria-label*="Collaborate"]',
-            'button:has-text("Share")',
+        # Step 1: Open ellipsis menu
+        ellipsis_selectors = [
+            'button[aria-label*="Actions"]',
+            'button[aria-label*="More"]',
+            'button[title*="Actions"]',
+            'button[title*="More"]',
+            'button:has-text("⋯")',
+            'button:has-text("...")',
+            '.icon-ellipsis',
+            '.actions-button',
         ]
 
-        for selector in share_selectors:
+        for selector in ellipsis_selectors:
             try:
-                share_button = await page.wait_for_selector(selector, timeout=2000)
-                if share_button:
-                    await share_button.click()
+                ellipsis_button = await page.wait_for_selector(selector, timeout=2000)
+                if ellipsis_button:
+                    await ellipsis_button.click()
+                    await asyncio.sleep(1)
+                    break
+            except:
+                continue
+
+        # Step 2: Click "Collaborate" option
+        collaborate_selectors = [
+            'button:has-text("Collaborate")',
+            'a:has-text("Collaborate")',
+            '[role="menuitem"]:has-text("Collaborate")',
+            'li:has-text("Collaborate")',
+        ]
+
+        for selector in collaborate_selectors:
+            try:
+                collab_option = await page.wait_for_selector(selector, timeout=2000)
+                if collab_option:
+                    await collab_option.click()
                     await asyncio.sleep(1)
                     break
             except:
