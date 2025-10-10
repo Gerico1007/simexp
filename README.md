@@ -103,6 +103,21 @@ Check your Simplenote note - the message is there! It will also sync to your oth
 - **Cross-Device Sync**: Messages appear on all your devices
 - **Persistent Changes**: Content stays in notes (doesn't get reverted)
 
+### 🔮 Session-Aware Notes (NEW - Issue #4!)
+- **Automatic Session Notes**: Create dedicated Simplenote notes for each terminal session
+- **YAML Metadata**: Track session ID, AI assistant, agents, and issue number
+- **Persistent State**: Session info saved locally in `.simexp/session.json`
+- **CLI Integration**: Full command suite for session management
+- **Cross-Device Session Logs**: Access session notes from any device
+
+**Session Commands:**
+```bash
+simexp session start --ai claude --issue 42  # Create session note
+simexp session write "Progress update"       # Write to session
+simexp session status                        # Show session info
+simexp session open                          # Open in browser
+```
+
 ---
 
 ## 🏗️ Project Structure
@@ -183,6 +198,68 @@ python -m simexp.simex
 # Content saved to ./output/YYYYMMDD/filename.md
 ```
 
+### 🔮 Session-Aware Notes Workflow
+
+Create dedicated Simplenote notes for your terminal sessions with automatic metadata tracking:
+
+```bash
+# 1. Start a new session (creates Simplenote note with YAML metadata)
+python -m simexp.simex session start --ai claude --issue 4
+
+# Output:
+# ♠️🌿🎸🧵 Creating Session Note
+# 🔮 Session ID: abc-def-123-456
+# 🌐 Note URL: https://app.simplenote.com/p/NOTE_ID
+# ✅ Session started successfully!
+
+# 2. Write to your session note
+python -m simexp.simex session write "Implemented session manager module"
+
+# Or pipe content:
+echo "Fixed bug in URL extraction" | python -m simexp.simex session write
+
+# 3. Check session status
+python -m simexp.simex session status
+
+# Output:
+# ♠️🌿🎸🧵 Active Session Status
+# 🔮 Session ID: abc-def-123-456
+# 🌐 Note URL: https://app.simplenote.com/p/NOTE_ID
+# 🤝 AI Assistant: claude
+# 🎯 Issue: #4
+
+# 4. Read session content
+python -m simexp.simex session read
+
+# 5. Open session note in browser
+python -m simexp.simex session open
+
+# 6. Get just the URL (for scripting)
+python -m simexp.simex session url
+
+# 7. Clear session when done
+python -m simexp.simex session clear
+```
+
+**Session Note Format:**
+```yaml
+---
+session_id: abc-def-123-456
+ai_assistant: claude
+agents:
+  - Jerry
+  - Aureon
+  - Nyro
+  - JamAI
+  - Synth
+issue_number: 4
+pr_number: null
+created_at: 2025-10-09T10:30:00
+---
+
+# Your session content appears below the metadata
+```
+
 ---
 
 ## 🔧 Configuration
@@ -223,6 +300,13 @@ python -m simexp.simex
 ```bash
 # Run comprehensive test (requires Chrome running with CDP)
 python test_cdp_connection.py
+```
+
+### Test Session-Aware Notes
+
+```bash
+# Run session feature tests (requires Chrome + Simplenote login)
+python test_session.py
 ```
 
 ### Manual Test
@@ -352,12 +436,15 @@ SimExp is part of the **G.Music Assembly** ecosystem:
 
 ## 🚀 Future Enhancements
 
+- [x] **Session-aware notes** (✅ Issue #4 - COMPLETED!)
 - [ ] Monitor mode (real-time change detection)
 - [ ] Bidirectional sync daemon
 - [ ] Multiple channel support
 - [ ] Message encryption
 - [ ] Simplenote API integration (alternative to browser)
 - [ ] Voice input support
+- [ ] Session note templates
+- [ ] Multi-session management
 
 ---
 
@@ -401,6 +488,12 @@ python3 -c "import asyncio; from simexp.playwright_writer import write_to_note; 
 # Read from Simplenote
 python3 -c "import asyncio; from simexp.playwright_writer import read_from_note; print(asyncio.run(read_from_note('https://app.simplenote.com', cdp_url='http://localhost:9223')))"
 
+# Session Commands
+python -m simexp.simex session start --ai claude --issue 4
+python -m simexp.simex session write "Progress update"
+python -m simexp.simex session status
+python -m simexp.simex session open
+
 # Launch Chrome with CDP
 google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
 ```
@@ -415,6 +508,8 @@ google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
 
 ---
 
-**Version**: 0.2.4
-**Last Updated**: October 6, 2025
+**Version**: 0.3.0
+**Last Updated**: October 9, 2025
 **Status**: ✅ Production Ready
+
+**Latest**: Session-Aware Notes (Issue #4) - Track terminal sessions in Simplenote!

@@ -76,6 +76,9 @@ build/
 *.bak
 .cache/
 
+# Session State (local workspace sessions)
+.simexp/
+
 # Assembly Learning Archives (optional - commit if desired)
 # Uncomment to exclude from repo:
 # .nyro/
