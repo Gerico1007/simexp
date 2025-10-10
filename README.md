@@ -18,36 +18,71 @@ SimExp is a bidirectional communication tool that bridges terminals and Simpleno
 
 ---
 
-## 🚀 Quick Start
+## 📦 Installation
 
-### For Terminal-to-Web Writing (The Cool New Feature!)
+### 1. Prerequisites
+
+*   Python 3.8+
+*   Google Chrome or Chromium
+*   A Simplenote account (free at https://simplenote.com)
+
+### 2. Install Dependencies
 
 ```bash
-# 1. Install dependencies
+# Core dependencies
+pip install playwright pyperclip beautifulsoup4 pyyaml requests
+
+# Install Playwright browsers
+playwright install chromium
+```
+
+### 3. Launch the Chrome Communication Bridge
+
+For `simexp` to communicate with your browser, you need to launch a special instance of Chrome with a remote debugging port. **You only need to do this once.**
+
+```bash
+# Launch Chrome with a remote debugging port
+google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
+```
+
+*   `--remote-debugging-port=9223`: This opens a communication channel that `simexp` uses to connect to your browser.
+*   `--user-data-dir=/tmp/chrome-simexp`: This creates a separate profile for this Chrome instance, so it doesn't interfere with your main browsing session.
+*   `&`: This runs the command in the background, so you can continue to use your terminal.
+
+In the new Chrome window that opens, log in to your Simplenote account: https://app.simplenote.com
+
+---
+
+## 🚀 Quick Start
+
+### 1. Launch Chrome for Communication
+
+First, you need to launch a special instance of Google Chrome that the script can communicate with. **You only need to do this once.**
+
+```bash
+# Launch Chrome with a remote debugging port
+google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
+```
+
+In the new Chrome window that opens, log in to your Simplenote account: https://app.simplenote.com
+
+### 2. Install SimExp
+
+```bash
+# Install dependencies
 pip install playwright pyperclip beautifulsoup4 pyyaml requests
 playwright install chromium
-
-# 2. Launch Chrome with remote debugging
-google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
-
-# 3. Login to Simplenote in the Chrome window that opens
-# Go to: https://app.simplenote.com
-
-# 4. Write from terminal to Simplenote!
-python3 -c "
-import asyncio
-from simexp.playwright_writer import write_to_note
-
-asyncio.run(write_to_note(
-    'https://app.simplenote.com',
-    'Hello from terminal! 🌊',
-    cdp_url='http://localhost:9223'
-))
-"
-
-# 5. Check your Simplenote note - the message is there!
-# 6. Check from your phone - it synced! ✨
 ```
+
+### 3. Write to Your Last Modified Note!
+
+Now you can write to your most recently modified Simplenote note directly from your terminal:
+
+```bash
+python -m simexp.simex write "Hello from the Assembly!" --cdp-url http://localhost:9223
+```
+
+Check your Simplenote note - the message is there! It will also sync to your other devices. ✨
 
 **👉 [Full Cross-Device Setup Guide](README_CROSS_DEVICE_FLUIDITY.md)**
 
@@ -67,6 +102,21 @@ asyncio.run(write_to_note(
 - **Authenticated Session**: Connects to your logged-in Chrome browser
 - **Cross-Device Sync**: Messages appear on all your devices
 - **Persistent Changes**: Content stays in notes (doesn't get reverted)
+
+### 🔮 Session-Aware Notes (NEW - Issue #4!)
+- **Automatic Session Notes**: Create dedicated Simplenote notes for each terminal session
+- **YAML Metadata**: Track session ID, AI assistant, agents, and issue number
+- **Persistent State**: Session info saved locally in `.simexp/session.json`
+- **CLI Integration**: Full command suite for session management
+- **Cross-Device Session Logs**: Access session notes from any device
+
+**Session Commands:**
+```bash
+simexp session start --ai claude --issue 42  # Create session note
+simexp session write "Progress update"       # Write to session
+simexp session status                        # Show session info
+simexp session open                          # Open in browser
+```
 
 ---
 
@@ -114,6 +164,28 @@ playwright install chromium
 
 ## 🎮 Usage
 
+### Write to the Last Modified Note
+
+This is the easiest way to use `simexp`. It will automatically find your last modified note and append your message to it.
+
+```bash
+python -m simexp.simex write "Your message here" --cdp-url http://localhost:9223
+```
+
+### Write to a Specific Note
+
+If you need to write to a specific note, you can provide its URL.
+
+```bash
+python -m simexp.simex write "Your message here" --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9223
+```
+
+### Read from a Specific Note
+
+```bash
+python -m simexp.simex read --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9223
+```
+
 ### Extract Content from Simplenote URLs
 
 ```bash
@@ -126,56 +198,66 @@ python -m simexp.simex
 # Content saved to ./output/YYYYMMDD/filename.md
 ```
 
----
+### 🔮 Session-Aware Notes Workflow
 
-### Write from Terminal to Simplenote
-
-**Method 1: Python Script**
-
-```python
-import asyncio
-from simexp.playwright_writer import write_to_note
-
-# Write a message
-result = asyncio.run(write_to_note(
-    note_url='https://app.simplenote.com',
-    content='Your message here!',
-    mode='append',  # or 'replace'
-    cdp_url='http://localhost:9223'
-))
-
-print(f"Success: {result['success']}")
-```
-
-**Method 2: One-Liner**
+Create dedicated Simplenote notes for your terminal sessions with automatic metadata tracking:
 
 ```bash
-python3 -c "import asyncio; from simexp.playwright_writer import write_to_note; asyncio.run(write_to_note('https://app.simplenote.com', 'Quick message!', cdp_url='http://localhost:9223'))"
+# 1. Start a new session (creates Simplenote note with YAML metadata)
+python -m simexp.simex session start --ai claude --issue 4
+
+# Output:
+# ♠️🌿🎸🧵 Creating Session Note
+# 🔮 Session ID: abc-def-123-456
+# 🌐 Note URL: https://app.simplenote.com/p/NOTE_ID
+# ✅ Session started successfully!
+
+# 2. Write to your session note
+python -m simexp.simex session write "Implemented session manager module"
+
+# Or pipe content:
+echo "Fixed bug in URL extraction" | python -m simexp.simex session write
+
+# 3. Check session status
+python -m simexp.simex session status
+
+# Output:
+# ♠️🌿🎸🧵 Active Session Status
+# 🔮 Session ID: abc-def-123-456
+# 🌐 Note URL: https://app.simplenote.com/p/NOTE_ID
+# 🤝 AI Assistant: claude
+# 🎯 Issue: #4
+
+# 4. Read session content
+python -m simexp.simex session read
+
+# 5. Open session note in browser
+python -m simexp.simex session open
+
+# 6. Get just the URL (for scripting)
+python -m simexp.simex session url
+
+# 7. Clear session when done
+python -m simexp.simex session clear
 ```
 
-**Method 3: Bash Alias** (add to ~/.bashrc)
-
-```bash
-alias simwrite='python3 -c "import asyncio; from simexp.playwright_writer import write_to_note; asyncio.run(write_to_note(\"https://app.simplenote.com\", \"'\''\$1'\''\", cdp_url=\"http://localhost:9223\"))"'
-
-# Then use it:
-simwrite "Message from terminal!"
-```
-
+**Session Note Format:**
+```yaml
+---
+session_id: abc-def-123-456
+ai_assistant: claude
+agents:
+  - Jerry
+  - Aureon
+  - Nyro
+  - JamAI
+  - Synth
+issue_number: 4
+pr_number: null
+created_at: 2025-10-09T10:30:00
 ---
 
-### Read from Simplenote
-
-```python
-import asyncio
-from simexp.playwright_writer import read_from_note
-
-content = asyncio.run(read_from_note(
-    note_url='https://app.simplenote.com',
-    cdp_url='http://localhost:9223'
-))
-
-print(content)
+# Your session content appears below the metadata
 ```
 
 ---
@@ -218,6 +300,13 @@ python -m simexp.simex
 ```bash
 # Run comprehensive test (requires Chrome running with CDP)
 python test_cdp_connection.py
+```
+
+### Test Session-Aware Notes
+
+```bash
+# Run session feature tests (requires Chrome + Simplenote login)
+python test_session.py
 ```
 
 ### Manual Test
@@ -347,12 +436,15 @@ SimExp is part of the **G.Music Assembly** ecosystem:
 
 ## 🚀 Future Enhancements
 
+- [x] **Session-aware notes** (✅ Issue #4 - COMPLETED!)
 - [ ] Monitor mode (real-time change detection)
 - [ ] Bidirectional sync daemon
 - [ ] Multiple channel support
 - [ ] Message encryption
 - [ ] Simplenote API integration (alternative to browser)
 - [ ] Voice input support
+- [ ] Session note templates
+- [ ] Multi-session management
 
 ---
 
@@ -365,12 +457,12 @@ Created by Jerry's G.Music Assembly
 
 ## 🤝 Contributing
 
-This project is part of the G.Music Assembly framework. Contributions welcome!
+This project is part of the G.Music Assembly framework. Contributions are welcome! Please follow this workflow:
 
-1. Fork the repository
-2. Create a feature branch
-3. Test your changes
-4. Submit a pull request
+1.  **Create an Issue:** Before starting any work, please create a new issue in the GitHub repository to describe the feature or bug you want to work on.
+2.  **Create a Feature Branch:** Create a new branch from `main` for your feature. The branch name should start with the issue number (e.g., `#123-new-feature`).
+3.  **Implement and Test:** Make your changes and test them thoroughly.
+4.  **Submit a Pull Request:** Once your feature is complete, submit a pull request to merge your feature branch into `main`.
 
 ---
 
@@ -396,6 +488,12 @@ python3 -c "import asyncio; from simexp.playwright_writer import write_to_note; 
 # Read from Simplenote
 python3 -c "import asyncio; from simexp.playwright_writer import read_from_note; print(asyncio.run(read_from_note('https://app.simplenote.com', cdp_url='http://localhost:9223')))"
 
+# Session Commands
+python -m simexp.simex session start --ai claude --issue 4
+python -m simexp.simex session write "Progress update"
+python -m simexp.simex session status
+python -m simexp.simex session open
+
 # Launch Chrome with CDP
 google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
 ```
@@ -410,6 +508,8 @@ google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
 
 ---
 
-**Version**: 0.2.4
-**Last Updated**: October 6, 2025
+**Version**: 0.3.0
+**Last Updated**: October 9, 2025
 **Status**: ✅ Production Ready
+
+**Latest**: Session-Aware Notes (Issue #4) - Track terminal sessions in Simplenote!

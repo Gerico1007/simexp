@@ -7,7 +7,13 @@ from .archiver import save_as_markdown
 import yaml
 from .imp_clip import update_sources_from_clipboard, is_clipboard_content_valid
 import asyncio
-from .playwright_writer import write_to_note, read_from_note
+from .playwright_writer import write_to_note, read_from_note, SimplenoteWriter
+from .session_manager import (
+    create_session_note,
+    get_active_session,
+    clear_active_session,
+    search_and_select_note
+)
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'simexp.yaml')  # Add this line to set the absolute path for the config file
 
@@ -28,7 +34,7 @@ def init_config():
     print("Configuration saved to simexp.yaml")
 
 
-def write_command(note_url, content=None, mode='append', headless=False):
+def write_command(note_url, content=None, mode='append', headless=False, cdp_url=None):
     """
     Write content to Simplenote note via Playwright
 
@@ -37,6 +43,7 @@ def write_command(note_url, content=None, mode='append', headless=False):
         content: Content to write (if None, read from stdin)
         mode: 'append' or 'replace'
         headless: Run browser in headless mode
+        cdp_url: Chrome DevTools Protocol URL
     """
     import sys
 
@@ -58,7 +65,8 @@ def write_command(note_url, content=None, mode='append', headless=False):
         content=content,
         mode=mode,
         headless=headless,
-        debug=True
+        debug=True,
+        cdp_url=cdp_url
     ))
 
     if result['success']:
@@ -93,6 +101,265 @@ def read_command(note_url, headless=True):
     print("=" * 60)
 
     return content
+
+
+# ═══════════════════════════════════════════════════════════════
+# SESSION COMMAND SUITE
+# ♠️🌿🎸🧵 G.Music Assembly - Session-Aware Notes
+# ═══════════════════════════════════════════════════════════════
+
+def session_start_command(ai_assistant='claude', issue_number=None, cdp_url='http://localhost:9223'):
+    """
+    Start a new session and create a Simplenote note for it
+
+    Args:
+        ai_assistant: AI assistant name (claude or gemini)
+        issue_number: GitHub issue number being worked on
+        cdp_url: Chrome DevTools Protocol URL
+    """
+    print(f"♠️🌿🎸🧵 Starting New Session")
+
+    session_data = asyncio.run(create_session_note(
+        ai_assistant=ai_assistant,
+        issue_number=issue_number,
+        cdp_url=cdp_url
+    ))
+
+    print(f"\n✅ Session started successfully!")
+    print(f"🔮 Session ID: {session_data['session_id']}")
+    print(f"🔑 Search Key: {session_data['search_key']}")
+    print(f"💡 Tip: Use 'simexp session write' to add content to your session note")
+
+
+def session_write_command(content=None, cdp_url='http://localhost:9223'):
+    """
+    Write to the current session's note using search
+
+    Args:
+        content: Content to write (if None, read from stdin)
+        cdp_url: Chrome DevTools Protocol URL
+    """
+    import sys
+
+    # Get active session
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    # Read from stdin if no content provided
+    if content is None:
+        print("📝 Reading content from stdin (Ctrl+D to finish)...")
+        content = sys.stdin.read()
+        if not content.strip():
+            print("❌ No content provided")
+            return
+
+    print(f"♠️🌿🎸🧵 Writing to Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+    print(f"📄 Content length: {len(content)} chars")
+
+    # Execute search and write
+    async def write_to_session():
+        async with SimplenoteWriter(
+            note_url='https://app.simplenote.com/',
+            headless=False,
+            debug=True,
+            cdp_url=cdp_url
+        ) as writer:
+            # Navigate to Simplenote
+            await writer.page.goto('https://app.simplenote.com/')
+            await writer.page.wait_for_load_state('networkidle')
+
+            # Search for and select the session note
+            found = await search_and_select_note(
+                session['session_id'],
+                writer.page,
+                debug=True
+            )
+
+            if not found:
+                print("❌ Could not find session note. Note may have been deleted.")
+                return False
+
+            # Write content to the note (it's already selected)
+            editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
+            await editor.click()
+            await asyncio.sleep(0.5)
+
+            # Go to end and append
+            await writer.page.keyboard.press('Control+End')
+            await asyncio.sleep(0.3)
+            await writer.page.keyboard.type(f"\n\n{content}", delay=10)  # Slow typing for reliability
+
+            # Wait longer for Simplenote autosave (critical!)
+            print(f"⏳ Waiting for Simplenote to autosave...")
+            await asyncio.sleep(3)  # Increased from 1 to 3 seconds
+
+            print(f"✅ Write successful!")
+            return True
+
+    success = asyncio.run(write_to_session())
+    if not success:
+        print(f"\n❌ Write failed")
+
+
+def session_read_command(cdp_url='http://localhost:9223'):
+    """
+    Read content from the current session's note using search
+
+    Args:
+        cdp_url: Chrome DevTools Protocol URL
+    """
+    import sys
+
+    # Get active session
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Reading Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+
+    # Execute search and read
+    async def read_from_session():
+        async with SimplenoteWriter(
+            note_url='https://app.simplenote.com/',
+            headless=False,
+            debug=True,
+            cdp_url=cdp_url
+        ) as writer:
+            # Navigate to Simplenote
+            await writer.page.goto('https://app.simplenote.com/')
+            await writer.page.wait_for_load_state('networkidle')
+
+            # Search for and select the session note
+            found = await search_and_select_note(
+                session['session_id'],
+                writer.page,
+                debug=True
+            )
+
+            if not found:
+                print("❌ Could not find session note. Note may have been deleted.")
+                return None
+
+            # Read content from the note
+            editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
+            content = await editor.text_content()
+            return content
+
+    content = asyncio.run(read_from_session())
+
+    if content:
+        print(f"\n📖 Session Content ({len(content)} chars):")
+        print("=" * 60)
+        print(content)
+        print("=" * 60)
+    else:
+        print(f"\n❌ Could not read session note")
+
+
+def session_open_command(cdp_url='http://localhost:9223'):
+    """
+    Open session note in browser using Playwright automation
+
+    Args:
+        cdp_url: Chrome DevTools Protocol URL
+    """
+    import sys
+
+    # Get active session
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Opening Session Note in Browser")
+    print(f"🔮 Session: {session['session_id']}")
+
+    # Execute search and open
+    async def open_session_note():
+        async with SimplenoteWriter(
+            note_url='https://app.simplenote.com/',
+            headless=False,
+            debug=True,
+            cdp_url=cdp_url
+        ) as writer:
+            # Navigate to Simplenote
+            await writer.page.goto('https://app.simplenote.com/')
+            await writer.page.wait_for_load_state('networkidle')
+
+            # Search for and select the session note
+            found = await search_and_select_note(
+                session['session_id'],
+                writer.page,
+                debug=True
+            )
+
+            if not found:
+                print("❌ Could not find session note. Note may have been deleted.")
+                return False
+
+            print(f"✅ Session note opened in browser!")
+            print(f"💡 Browser will stay open for you to view/edit the note")
+
+            # Keep the browser open by waiting (user can Ctrl+C to close)
+            print(f"\n🎯 Press Ctrl+C when done viewing/editing...")
+            try:
+                await asyncio.sleep(300)  # Wait 5 minutes or until Ctrl+C
+            except KeyboardInterrupt:
+                print(f"\n👋 Closing browser connection...")
+
+            return True
+
+    success = asyncio.run(open_session_note())
+    if success:
+        print(f"✅ Done!")
+    else:
+        print(f"❌ Failed to open session note")
+
+
+def session_url_command():
+    """Print the session search key"""
+    import sys
+
+    # Get active session
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"🔑 Session search key: {session['search_key']}")
+    print(f"💡 Use this in Simplenote search to find your session note")
+
+
+def session_status_command():
+    """Show current session status"""
+    import sys
+
+    # Get active session
+    session = get_active_session()
+    if not session:
+        print("❌ No active session")
+        print("💡 Run 'simexp session start' to create a new session")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Active Session Status")
+    print(f"🔮 Session ID: {session['session_id']}")
+    print(f"🔑 Search Key: {session['search_key']}")
+    print(f"🤝 AI Assistant: {session['ai_assistant']}")
+    if session.get('issue_number'):
+        print(f"🎯 Issue: #{session['issue_number']}")
+    print(f"📅 Created: {session['created_at']}")
+
+
+def session_clear_command():
+    """Clear the current session"""
+    clear_active_session()
+    print("✅ Session cleared")
+
 
 def main():
     # Update sources from clipboard
@@ -140,15 +407,19 @@ if __name__ == "__main__":
             init_config()
 
         elif command == 'write':
-            # Usage: simexp write <note_url> [content]
-            if len(sys.argv) < 3:
-                print("Usage: simexp write <note_url> [content]")
-                print("If content not provided, will read from stdin")
-                sys.exit(1)
+            import argparse
+            parser = argparse.ArgumentParser(
+                description='Write content to a Simplenote note.',
+                prog='simexp write')
+            parser.add_argument('content', help='The content to write. If not provided, reads from stdin.')
+            parser.add_argument('--note-url', default='https://app.simplenote.com/', help='The URL of the Simplenote note. Defaults to the main page, which will select the most recent note.')
+            parser.add_argument('--mode', choices=['append', 'replace'], default='append', help='Write mode.')
+            parser.add_argument('--headless', action='store_true', help='Run in headless mode.')
+            parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL to connect to an existing browser.')
+            
+            args = parser.parse_args(sys.argv[2:])
 
-            note_url = sys.argv[2]
-            content = sys.argv[3] if len(sys.argv) > 3 else None
-            write_command(note_url, content, mode='append', headless=False)
+            write_command(args.note_url, args.content, mode=args.mode, headless=args.headless, cdp_url=args.cdp_url)
 
         elif command == 'read':
             # Usage: simexp read <note_url>
@@ -159,18 +430,108 @@ if __name__ == "__main__":
             note_url = sys.argv[2]
             read_command(note_url, headless=True)
 
+        elif command == 'session':
+            # Session command suite
+            if len(sys.argv) < 3:
+                print("Usage: simexp session <subcommand>")
+                print("\nSubcommands:")
+                print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
+                print("  write <message>                              - Write to session note")
+                print("  read                                         - Read session note")
+                print("  open                                         - Open session note in browser")
+                print("  url                                          - Print session note URL")
+                print("  status                                       - Show session status")
+                print("  clear                                        - Clear active session")
+                sys.exit(1)
+
+            subcommand = sys.argv[2]
+
+            if subcommand == 'start':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Start a new session',
+                    prog='simexp session start')
+                parser.add_argument('--ai', default='claude', choices=['claude', 'gemini'], help='AI assistant name')
+                parser.add_argument('--issue', type=int, help='GitHub issue number')
+                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_start_command(ai_assistant=args.ai, issue_number=args.issue, cdp_url=args.cdp_url)
+
+            elif subcommand == 'write':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Write to session note',
+                    prog='simexp session write')
+                parser.add_argument('content', nargs='?', help='Content to write (optional, reads from stdin if not provided)')
+                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_write_command(content=args.content, cdp_url=args.cdp_url)
+
+            elif subcommand == 'read':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Read session note',
+                    prog='simexp session read')
+                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_read_command(cdp_url=args.cdp_url)
+
+            elif subcommand == 'open':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Open session note in browser',
+                    prog='simexp session open')
+                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_open_command(cdp_url=args.cdp_url)
+
+            elif subcommand == 'url':
+                session_url_command()
+
+            elif subcommand == 'status':
+                session_status_command()
+
+            elif subcommand == 'clear':
+                session_clear_command()
+
+            else:
+                print(f"Unknown session subcommand: {subcommand}")
+                print("Run 'simexp session' for usage information")
+                sys.exit(1)
+
         elif command == 'help' or command == '--help' or command == '-h':
             print("♠️🌿🎸🧵 SimExp - Simplenote Web Content Extractor & Writer")
             print("\nCommands:")
-            print("  simexp                    - Run extraction from clipboard/config")
-            print("  simexp init              - Initialize configuration")
-            print("  simexp write <url> [msg] - Write to Simplenote note")
-            print("  simexp read <url>        - Read from Simplenote note")
-            print("  simexp help              - Show this help")
+            print("  simexp                       - Run extraction from clipboard/config")
+            print("  simexp init                  - Initialize configuration")
+            print("  simexp write <url> [msg]     - Write to Simplenote note")
+            print("  simexp read <url>            - Read from Simplenote note")
+            print("  simexp session <subcommand>  - Session management")
+            print("  simexp help                  - Show this help")
+            print("\nSession Commands:")
+            print("  simexp session start [--ai <assistant>] [--issue <number>]")
+            print("                               - Start new session with Simplenote note")
+            print("  simexp session write <msg>   - Write to current session's note")
+            print("  simexp session read          - Read current session's note")
+            print("  simexp session open          - Open session note in browser")
+            print("  simexp session url           - Print session note URL")
+            print("  simexp session status        - Show current session info")
+            print("  simexp session clear         - Clear active session")
             print("\nExamples:")
+            print("  # Original features:")
             print("  simexp write https://app.simplenote.com/p/0ZqWsQ 'Hello!'")
             print("  echo 'Message' | simexp write https://app.simplenote.com/p/0ZqWsQ")
             print("  simexp read https://app.simplenote.com/p/0ZqWsQ")
+            print("\n  # Session-aware notes:")
+            print("  simexp session start --ai claude --issue 42")
+            print("  simexp session write 'Implemented feature X'")
+            print("  echo 'Progress update' | simexp session write")
+            print("  simexp session status")
+            print("  simexp session open")
 
         else:
             print(f"Unknown command: {command}")
