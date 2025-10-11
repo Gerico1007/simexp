@@ -857,22 +857,38 @@ async def share_session_note(
             return {'success': False, 'added': [], 'failed': emails, 'total': len(emails)}
 
         # Add each collaborator
-        for email in emails:
-            success = await add_collaborator(
-                session['session_id'],
-                email,
-                writer.page,
-                debug=debug
-            )
+        for i, email in enumerate(emails, 1):
+            if debug and len(emails) > 1:
+                print(f"\n[{i}/{len(emails)}] Adding: {email}")
 
-            if success:
-                added.append(email)
-            else:
+            try:
+                # Timeout protection: 15 seconds per collaborator
+                success = await asyncio.wait_for(
+                    add_collaborator(
+                        session['session_id'],
+                        email,
+                        writer.page,
+                        debug=debug
+                    ),
+                    timeout=15.0
+                )
+
+                if success:
+                    added.append(email)
+                else:
+                    failed.append(email)
+
+            except asyncio.TimeoutError:
+                print(f"⏱️  Timeout adding {email} (15s exceeded)")
+                failed.append(email)
+            except Exception as e:
+                print(f"❌ Error adding {email}: {e}")
                 failed.append(email)
 
-            # Brief pause between collaborators
-            if len(emails) > 1:
-                await asyncio.sleep(1)
+            # Cleanup: Close any open dialogs/menus before next iteration
+            if i < len(emails):  # Don't cleanup after last one
+                await writer.page.keyboard.press('Escape')
+                await asyncio.sleep(0.5)
 
     # Summary
     print(f"\n📊 Sharing Summary:")
