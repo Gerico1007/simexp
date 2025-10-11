@@ -83,70 +83,147 @@ async def publish_note(
             print("❌ Could not find ellipsis menu (⋯)")
             return None
 
-        # Step 2: Find and click "Publish" option in menu
-        publish_selectors = [
-            'button:has-text("Publish")',
-            'a:has-text("Publish")',
-            '[role="menuitem"]:has-text("Publish")',
-            'li:has-text("Publish")',
-            '.menu-item:has-text("Publish")',
+        # Wait for menu to fully render
+        await asyncio.sleep(1.5)
+
+        # Step 2: Check if already published, or publish the note
+        # Structure: <input type="checkbox" id="note-actions-publish-checkbox" checked="">
+        # If checked, note is already published
+
+        is_published = False
+        try:
+            publish_checkbox = await page.wait_for_selector('#note-actions-publish-checkbox', timeout=3000)
+            if publish_checkbox:
+                is_checked = await publish_checkbox.is_checked()
+                is_published = is_checked
+                if debug:
+                    if is_published:
+                        print(f"✅ Note is already published")
+                    else:
+                        print(f"📝 Note not published yet, publishing...")
+        except:
+            if debug:
+                print("⚠️  Could not find publish checkbox")
+
+        # If not published, click the label to check the checkbox
+        if not is_published:
+            publish_selectors = [
+                'label[for="note-actions-publish-checkbox"]',
+                '#note-actions-publish-checkbox',
+            ]
+
+            publish_clicked = False
+            for selector in publish_selectors:
+                try:
+                    publish_element = await page.wait_for_selector(selector, timeout=2000)
+                    if publish_element:
+                        if debug:
+                            print(f"✅ Found publish element: {selector}")
+                        await publish_element.click()
+                        if debug:
+                            print(f"⏳ Waiting for publish to complete...")
+                        await asyncio.sleep(2.5)
+                        publish_clicked = True
+                        break
+                except:
+                    continue
+
+            if not publish_clicked:
+                print("❌ Could not click 'Publish' checkbox")
+                return None
+
+        # Look for "Copy Link" button within the public link panel
+        # Structure: <div class="note-actions-panel note-actions-public-link">
+        #              <button type="button" class="button button-borderless">Copy Link</button>
+        copy_link_selectors = [
+            '.note-actions-public-link button:has-text("Copy Link")',
+            '.note-actions-public-link button.button-borderless',
+            'button.button-borderless:has-text("Copy Link")',
+            'button:has-text("Copy Link")',
         ]
 
-        publish_option = None
-        for selector in publish_selectors:
+        copy_link_button = None
+        for selector in copy_link_selectors:
             try:
-                publish_option = await page.wait_for_selector(selector, timeout=2000)
-                if publish_option:
+                copy_link_button = await page.wait_for_selector(selector, timeout=3000)
+                if copy_link_button:
                     if debug:
-                        print(f"✅ Found publish option: {selector}")
-                    await publish_option.click()
-                    await asyncio.sleep(1)
+                        print(f"✅ Found copy link button: {selector}")
+                    # Click it to copy URL to clipboard
+                    await copy_link_button.click()
+                    if debug:
+                        print(f"⏳ Waiting for clipboard copy...")
+                    await asyncio.sleep(1.5)  # Wait for clipboard
                     break
             except:
                 continue
 
-        if not publish_option:
-            print("❌ Could not find 'Publish' option in menu")
-            print("💡 Note: Simplenote may not have publish feature, or menu changed")
-            return None
-
-        # Wait for publish to complete
-        await asyncio.sleep(2)
-
-        # Try to extract public URL
-        # Common patterns for public URLs
-        url_selectors = [
-            'input[readonly][value*="simplenote.com/p/"]',
-            'a[href*="simplenote.com/p/"]',
-            '.public-url',
-            '[data-public-url]',
-            'input[type="text"][value*="/p/"]'
-        ]
-
+        # Try to read URL from clipboard (Simplenote auto-copies it)
+        # Simplenote uses simp.ly URL shortener, e.g., http://simp.ly/p/yJ5sNZ
+        # We'll transform it to https://app.simplenote.com/p/yJ5sNZ
         public_url = None
-        for selector in url_selectors:
-            try:
-                element = await page.wait_for_selector(selector, timeout=2000)
-                if element:
-                    # Try to get URL from various attributes
-                    url = await element.get_attribute('value')
-                    if not url:
-                        url = await element.get_attribute('href')
-                    if not url:
-                        url = await element.text_content()
+        try:
+            import pyperclip
+            clipboard_content = pyperclip.paste()
+            # Check for simp.ly OR simplenote.com URLs with /p/ pattern
+            if clipboard_content and '/p/' in clipboard_content:
+                url = clipboard_content.strip()
 
-                    if url and '/p/' in url:
-                        public_url = url
+                # Transform simp.ly to full simplenote.com URL
+                if 'simp.ly' in url:
+                    # Extract note ID from simp.ly URL
+                    # Example: http://simp.ly/p/yJ5sNZ -> yJ5sNZ
+                    import re
+                    match = re.search(r'/p/([a-zA-Z0-9]+)', url)
+                    if match:
+                        note_id = match.group(1)
+                        public_url = f"https://app.simplenote.com/p/{note_id}"
                         if debug:
-                            print(f"✅ Extracted public URL: {public_url}")
-                        break
-            except:
-                continue
+                            print(f"✅ Got public URL from clipboard: {public_url}")
+                            print(f"   (Transformed from: {url})")
+                elif 'simplenote.com' in url:
+                    # Already in correct format
+                    public_url = url
+                    if debug:
+                        print(f"✅ Got public URL from clipboard: {public_url}")
+        except Exception as e:
+            if debug:
+                print(f"⚠️  Could not read clipboard: {e}")
+
+        # Fallback: Try to extract from DOM
+        if not public_url:
+            url_selectors = [
+                'input[readonly][value*="simplenote.com/p/"]',
+                'input[value*="simplenote.com/p/"]',
+                'a[href*="simplenote.com/p/"]',
+                '.public-url',
+                '[data-public-url]',
+                'input[type="text"][value*="/p/"]'
+            ]
+
+            for selector in url_selectors:
+                try:
+                    element = await page.wait_for_selector(selector, timeout=2000)
+                    if element:
+                        # Try to get URL from various attributes
+                        url = await element.get_attribute('value')
+                        if not url:
+                            url = await element.get_attribute('href')
+                        if not url:
+                            url = await element.text_content()
+
+                        if url and '/p/' in url:
+                            public_url = url.strip()
+                            if debug:
+                                print(f"✅ Extracted public URL from DOM: {public_url}")
+                            break
+                except:
+                    continue
 
         if not public_url:
             if debug:
                 print("⚠️ Published, but could not extract URL automatically")
-                print("💡 You may need to copy it manually from Simplenote UI")
+                print("💡 Check clipboard or Simplenote UI for the public URL")
 
         return public_url
 
@@ -344,7 +421,9 @@ async def add_collaborator(
                     if debug:
                         print(f"✅ Found add button: {selector}")
                     await add_button.click()
-                    await asyncio.sleep(1)
+                    if debug:
+                        print(f"⏳ Waiting for Simplenote autosave...")
+                    await asyncio.sleep(3)  # Increased from 1 to 3 seconds for autosave
                     break
             except:
                 continue
@@ -352,7 +431,9 @@ async def add_collaborator(
         if not add_button:
             # Try pressing Enter as fallback
             await page.keyboard.press('Enter')
-            await asyncio.sleep(1)
+            if debug:
+                print(f"⏳ Waiting for Simplenote autosave...")
+            await asyncio.sleep(3)  # Wait for autosave
 
         if debug:
             print(f"✅ Collaborator added: {email}")
@@ -528,8 +609,19 @@ async def list_collaborators(
         page_content = await page.content()
         found_emails = re.findall(email_pattern, page_content)
 
-        # Filter out our own email and duplicates
-        collaborators = list(set(found_emails))
+        # Filter out placeholder emails, our own email, and duplicates
+        excluded_patterns = [
+            'email@example.com',
+            'user@example.com',
+            'name@example.com',
+            'test@example.com',
+            'example@example.com',
+        ]
+
+        collaborators = [
+            email for email in set(found_emails)
+            if email.lower() not in excluded_patterns
+        ]
 
         if debug:
             if collaborators:
