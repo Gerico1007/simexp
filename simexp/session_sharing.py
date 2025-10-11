@@ -10,6 +10,7 @@ import asyncio
 from typing import Optional, List, Dict
 from .playwright_writer import SimplenoteWriter
 from .session_manager import get_active_session, search_and_select_note
+from .collaborator_config import resolve_collaborator
 
 
 def validate_email(email: str) -> bool:
@@ -785,3 +786,108 @@ async def list_session_collaborators(
         )
 
         return collaborators
+
+
+async def share_session_note(
+    identifier: str,
+    cdp_url: str = 'http://localhost:9223',
+    debug: bool = True
+) -> Dict[str, any]:
+    """
+    Share the current session's note with collaborator(s) using glyph/alias/group/email
+
+    Supports:
+    - Glyphs: ♠️, 🌿, 🎸, ⚡, 🧠
+    - Aliases: nyro, aureon, jamai, jerry, mia
+    - Groups: assembly, all, perspectives
+    - Direct emails: someone@example.com
+
+    Args:
+        identifier: Glyph, alias, group, or email
+        cdp_url: Chrome DevTools Protocol URL
+        debug: Enable debug logging
+
+    Returns:
+        Dict with 'success', 'added', 'failed', 'total' keys
+
+    Examples:
+        share_session_note("♠️")        → Add Nyro
+        share_session_note("assembly")  → Add all Assembly members
+        share_session_note("custom@example.com")  → Add custom email
+    """
+    session = get_active_session()
+    if not session:
+        print("❌ No active session")
+        return {'success': False, 'added': [], 'failed': [], 'total': 0}
+
+    # Resolve identifier to email(s)
+    emails = resolve_collaborator(identifier, debug=debug)
+
+    if not emails:
+        print(f"❌ Could not resolve '{identifier}'")
+        print(f"💡 Run 'simexp session share --help' to see available options")
+        return {'success': False, 'added': [], 'failed': [], 'total': 0}
+
+    print(f"\n♠️🌿🎸🧵 Sharing Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+    print(f"👥 Adding {len(emails)} collaborator(s)...")
+
+    added = []
+    failed = []
+
+    async with SimplenoteWriter(
+        note_url='https://app.simplenote.com/',
+        headless=False,
+        debug=debug,
+        cdp_url=cdp_url
+    ) as writer:
+        # Navigate to Simplenote
+        await writer.page.goto('https://app.simplenote.com/')
+        await writer.page.wait_for_load_state('networkidle')
+
+        # Search for and select the session note ONCE
+        found = await search_and_select_note(
+            session['session_id'],
+            writer.page,
+            debug=debug
+        )
+
+        if not found:
+            print("❌ Could not find session note")
+            return {'success': False, 'added': [], 'failed': emails, 'total': len(emails)}
+
+        # Add each collaborator
+        for email in emails:
+            success = await add_collaborator(
+                session['session_id'],
+                email,
+                writer.page,
+                debug=debug
+            )
+
+            if success:
+                added.append(email)
+            else:
+                failed.append(email)
+
+            # Brief pause between collaborators
+            if len(emails) > 1:
+                await asyncio.sleep(1)
+
+    # Summary
+    print(f"\n📊 Sharing Summary:")
+    print(f"✅ Added: {len(added)}/{len(emails)}")
+    if added:
+        for email in added:
+            print(f"   👤 {email}")
+    if failed:
+        print(f"❌ Failed: {len(failed)}/{len(emails)}")
+        for email in failed:
+            print(f"   ❌ {email}")
+
+    return {
+        'success': len(failed) == 0,
+        'added': added,
+        'failed': failed,
+        'total': len(emails)
+    }

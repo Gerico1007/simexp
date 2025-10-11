@@ -7,6 +7,7 @@ from .archiver import save_as_markdown
 import yaml
 from .imp_clip import update_sources_from_clipboard, is_clipboard_content_valid
 import asyncio
+import pyperclip
 from .playwright_writer import write_to_note, read_from_note, SimplenoteWriter
 from .session_manager import (
     create_session_note,
@@ -19,7 +20,8 @@ from .session_sharing import (
     unpublish_session_note,
     add_session_collaborator,
     remove_session_collaborator,
-    list_session_collaborators
+    list_session_collaborators,
+    share_session_note
 )
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'simexp.yaml')  # Add this line to set the absolute path for the config file
@@ -383,8 +385,16 @@ def session_publish_command(cdp_url='http://localhost:9223'):
     public_url = asyncio.run(publish_session_note(cdp_url=cdp_url))
 
     if public_url:
+        # Copy to clipboard
+        try:
+            pyperclip.copy(public_url)
+            clipboard_status = "📋 Copied to clipboard!"
+        except Exception as e:
+            clipboard_status = f"⚠️  Could not copy to clipboard: {e}"
+
         print(f"\n✅ Note published successfully!")
         print(f"🌐 Public URL: {public_url}")
+        print(f"{clipboard_status}")
     else:
         print(f"\n⚠️  Publish completed but could not extract URL")
         print(f"💡 Check Simplenote UI for the public URL")
@@ -474,6 +484,35 @@ def session_collab_list_command(cdp_url='http://localhost:9223'):
         print(f"\n📭 No collaborators found")
 
 
+def session_share_command(identifier, cdp_url='http://localhost:9223'):
+    """
+    Share session note using glyph/alias/group/email
+
+    Examples:
+        simexp session share ♠️              - Share with Nyro
+        simexp session share nyro            - Share with Nyro (alias)
+        simexp session share assembly        - Share with all Assembly members
+        simexp session share user@email.com  - Share with custom email
+    """
+    import sys
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Sharing Session Note via Glyph Resolution")
+    print(f"🔮 Session: {session['session_id']}")
+    print(f"🔑 Identifier: {identifier}")
+
+    result = asyncio.run(share_session_note(identifier, cdp_url=cdp_url, debug=True))
+
+    # Result dict already prints summary in share_session_note()
+    # Just handle exit code based on success
+    if not result['success']:
+        sys.exit(1)
+
+
 def main():
     # Update sources from clipboard
     update_sources_from_clipboard()
@@ -556,6 +595,7 @@ if __name__ == "__main__":
                 print("  status                                       - Show session status")
                 print("  clear                                        - Clear active session")
                 print("\nSharing & Publishing (Issue #6):")
+                print("  share <glyph|alias|group|email>              - Share with collaborator(s)")
                 print("  publish                                      - Publish note (get public URL)")
                 print("  unpublish                                    - Unpublish note (make private)")
                 print("  collab add <email>                           - Add collaborator")
@@ -686,6 +726,17 @@ if __name__ == "__main__":
                     print("Run 'simexp session collab' for usage information")
                     sys.exit(1)
 
+            elif subcommand == 'share':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Share session note with collaborator(s) using glyph/alias/group/email',
+                    prog='simexp session share')
+                parser.add_argument('identifier', help='Glyph (♠️), alias (nyro), group (assembly), or email address')
+                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_share_command(args.identifier, cdp_url=args.cdp_url)
+
             else:
                 print(f"Unknown session subcommand: {subcommand}")
                 print("Run 'simexp session' for usage information")
@@ -710,6 +761,7 @@ if __name__ == "__main__":
             print("  simexp session status        - Show current session info")
             print("  simexp session clear         - Clear active session")
             print("\nSharing Commands (Issue #6):")
+            print("  simexp session share <glyph|alias|group|email>  - Share with collaborator(s)")
             print("  simexp session publish       - Publish note (get public URL)")
             print("  simexp session unpublish     - Unpublish note (make private)")
             print("  simexp session collab add <email>    - Add collaborator")
@@ -727,6 +779,10 @@ if __name__ == "__main__":
             print("  simexp session status")
             print("  simexp session open")
             print("\n  # Sharing & publishing:")
+            print("  simexp session share ♠️                        # Share with Nyro (glyph)")
+            print("  simexp session share nyro                     # Share with Nyro (alias)")
+            print("  simexp session share assembly                 # Share with Assembly group")
+            print("  simexp session share custom@example.com       # Share with custom email")
             print("  simexp session publish")
             print("  simexp session collab add jerry@example.com")
             print("  simexp session collab list")

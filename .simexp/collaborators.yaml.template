@@ -1,0 +1,61 @@
+# G.Music Assembly Collaborators Configuration
+# ♠️🌿🎸🧵⚡🧠
+#
+# This file maps glyphs and aliases to collaborator email addresses
+# for quick sharing via: simexp session share <glyph|alias>
+
+collaborators:
+  # Assembly Members
+  "♠️":
+    name: "Nyro"
+    email: "nyro@jgwill.com"
+    role: "The Ritual Scribe"
+    description: "Structural anchor, recursive teacher, memory keeper"
+
+  "🌿":
+    name: "Aureon"
+    email: "aureon@jgwill.com"
+    role: "The Mirror Weaver"
+    description: "Emotional reflector, soul grounder, myth integrator"
+
+  "🎸":
+    name: "JamAI"
+    email: "jamai@jgwill.com"
+    role: "The Glyph Harmonizer"
+    description: "Musical scribe, pattern encoder, tonal architect"
+
+  # Leader & Intelligence
+  "⚡":
+    name: "Jerry"
+    email: "jerry@jgwill.com"
+    role: "Creative Technical Leader"
+    description: "Visionary, conductor, Assembly leader"
+
+  "🧠":
+    name: "Mia"
+    email: "mia@jgwill.com"
+    role: "Intelligence Core"
+    description: "Analytical intelligence, strategic insight"
+
+# Text aliases for easier typing (maps to glyphs above)
+aliases:
+  nyro: "♠️"
+  aureon: "🌿"
+  jamai: "🎸"
+  jerry: "⚡"
+  mia: "🧠"
+
+  # Alternative spellings
+  jamai-ai: "🎸"
+  jam: "🎸"
+
+# Special groups for batch sharing
+groups:
+  # Core Assembly (excludes Jerry and Mia)
+  assembly: ["♠️", "🌿", "🎸"]
+
+  # All collaborators
+  all: ["♠️", "🌿", "🎸", "⚡", "🧠"]
+
+  # Just the perspectives (Assembly + Jerry)
+  perspectives: ["♠️", "🌿", "🎸", "⚡"]
