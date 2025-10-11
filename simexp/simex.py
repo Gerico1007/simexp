@@ -7,12 +7,21 @@ from .archiver import save_as_markdown
 import yaml
 from .imp_clip import update_sources_from_clipboard, is_clipboard_content_valid
 import asyncio
+import pyperclip
 from .playwright_writer import write_to_note, read_from_note, SimplenoteWriter
 from .session_manager import (
     create_session_note,
     get_active_session,
     clear_active_session,
     search_and_select_note
+)
+from .session_sharing import (
+    publish_session_note,
+    unpublish_session_note,
+    add_session_collaborator,
+    remove_session_collaborator,
+    list_session_collaborators,
+    share_session_note
 )
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'simexp.yaml')  # Add this line to set the absolute path for the config file
@@ -361,6 +370,149 @@ def session_clear_command():
     print("✅ Session cleared")
 
 
+def session_publish_command(cdp_url='http://localhost:9223'):
+    """Publish the current session's note"""
+    import sys
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Publishing Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+
+    public_url = asyncio.run(publish_session_note(cdp_url=cdp_url))
+
+    if public_url:
+        # Copy to clipboard
+        try:
+            pyperclip.copy(public_url)
+            clipboard_status = "📋 Copied to clipboard!"
+        except Exception as e:
+            clipboard_status = f"⚠️  Could not copy to clipboard: {e}"
+
+        print(f"\n✅ Note published successfully!")
+        print(f"🌐 Public URL: {public_url}")
+        print(f"{clipboard_status}")
+    else:
+        print(f"\n⚠️  Publish completed but could not extract URL")
+        print(f"💡 Check Simplenote UI for the public URL")
+
+
+def session_unpublish_command(cdp_url='http://localhost:9223'):
+    """Unpublish the current session's note"""
+    import sys
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Unpublishing Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+
+    success = asyncio.run(unpublish_session_note(cdp_url=cdp_url))
+
+    if success:
+        print(f"\n✅ Note unpublished successfully!")
+    else:
+        print(f"\n❌ Unpublish failed")
+
+
+def session_collab_add_command(email, cdp_url='http://localhost:9223'):
+    """Add a collaborator to the current session's note"""
+    import sys
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Adding Collaborator to Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+    print(f"👤 Collaborator: {email}")
+
+    success = asyncio.run(add_session_collaborator(email, cdp_url=cdp_url))
+
+    if success:
+        print(f"\n✅ Collaborator added successfully!")
+    else:
+        print(f"\n❌ Failed to add collaborator")
+
+
+def session_collab_remove_command(email, cdp_url='http://localhost:9223'):
+    """Remove a collaborator from the current session's note"""
+    import sys
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Removing Collaborator from Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+    print(f"👤 Collaborator: {email}")
+
+    success = asyncio.run(remove_session_collaborator(email, cdp_url=cdp_url))
+
+    if success:
+        print(f"\n✅ Collaborator removed successfully!")
+    else:
+        print(f"\n❌ Failed to remove collaborator")
+
+
+def session_collab_list_command(cdp_url='http://localhost:9223'):
+    """List all collaborators on the current session's note"""
+    import sys
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Listing Collaborators on Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+
+    collaborators = asyncio.run(list_session_collaborators(cdp_url=cdp_url))
+
+    if collaborators:
+        print(f"\n✅ Found {len(collaborators)} collaborator(s):")
+        for email in collaborators:
+            print(f"   👤 {email}")
+    else:
+        print(f"\n📭 No collaborators found")
+
+
+def session_share_command(identifier, cdp_url='http://localhost:9223'):
+    """
+    Share session note using glyph/alias/group/email
+
+    Examples:
+        simexp session share ♠️              - Share with Nyro
+        simexp session share nyro            - Share with Nyro (alias)
+        simexp session share assembly        - Share with all Assembly members
+        simexp session share user@email.com  - Share with custom email
+    """
+    import sys
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Sharing Session Note via Glyph Resolution")
+    print(f"🔮 Session: {session['session_id']}")
+    print(f"🔑 Identifier: {identifier}")
+
+    result = asyncio.run(share_session_note(identifier, cdp_url=cdp_url, debug=True))
+
+    # Result dict already prints summary in share_session_note()
+    # Just handle exit code based on success
+    if not result['success']:
+        sys.exit(1)
+
+
 def main():
     # Update sources from clipboard
     update_sources_from_clipboard()
@@ -434,7 +586,7 @@ if __name__ == "__main__":
             # Session command suite
             if len(sys.argv) < 3:
                 print("Usage: simexp session <subcommand>")
-                print("\nSubcommands:")
+                print("\nSession Management:")
                 print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
                 print("  write <message>                              - Write to session note")
                 print("  read                                         - Read session note")
@@ -442,6 +594,13 @@ if __name__ == "__main__":
                 print("  url                                          - Print session note URL")
                 print("  status                                       - Show session status")
                 print("  clear                                        - Clear active session")
+                print("\nSharing & Publishing (Issue #6):")
+                print("  share <glyph|alias|group|email>              - Share with collaborator(s)")
+                print("  publish                                      - Publish note (get public URL)")
+                print("  unpublish                                    - Unpublish note (make private)")
+                print("  collab add <email>                           - Add collaborator")
+                print("  collab remove <email>                        - Remove collaborator")
+                print("  collab list                                  - List all collaborators")
                 sys.exit(1)
 
             subcommand = sys.argv[2]
@@ -498,6 +657,86 @@ if __name__ == "__main__":
             elif subcommand == 'clear':
                 session_clear_command()
 
+            elif subcommand == 'publish':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Publish session note',
+                    prog='simexp session publish')
+                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_publish_command(cdp_url=args.cdp_url)
+
+            elif subcommand == 'unpublish':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Unpublish session note',
+                    prog='simexp session unpublish')
+                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_unpublish_command(cdp_url=args.cdp_url)
+
+            elif subcommand == 'collab':
+                # Collaborator management subcommands
+                if len(sys.argv) < 4:
+                    print("Usage: simexp session collab <add|remove|list> [email]")
+                    print("\nSubcommands:")
+                    print("  add <email>     - Add collaborator by email")
+                    print("  remove <email>  - Remove collaborator by email")
+                    print("  list            - List all collaborators")
+                    sys.exit(1)
+
+                collab_action = sys.argv[3]
+
+                if collab_action == 'add':
+                    import argparse
+                    parser = argparse.ArgumentParser(
+                        description='Add collaborator',
+                        prog='simexp session collab add')
+                    parser.add_argument('email', help='Collaborator email address')
+                    parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                    args = parser.parse_args(sys.argv[4:])
+                    session_collab_add_command(args.email, cdp_url=args.cdp_url)
+
+                elif collab_action == 'remove':
+                    import argparse
+                    parser = argparse.ArgumentParser(
+                        description='Remove collaborator',
+                        prog='simexp session collab remove')
+                    parser.add_argument('email', help='Collaborator email address')
+                    parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                    args = parser.parse_args(sys.argv[4:])
+                    session_collab_remove_command(args.email, cdp_url=args.cdp_url)
+
+                elif collab_action == 'list':
+                    import argparse
+                    parser = argparse.ArgumentParser(
+                        description='List collaborators',
+                        prog='simexp session collab list')
+                    parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                    args = parser.parse_args(sys.argv[4:])
+                    session_collab_list_command(cdp_url=args.cdp_url)
+
+                else:
+                    print(f"Unknown collab action: {collab_action}")
+                    print("Run 'simexp session collab' for usage information")
+                    sys.exit(1)
+
+            elif subcommand == 'share':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Share session note with collaborator(s) using glyph/alias/group/email',
+                    prog='simexp session share')
+                parser.add_argument('identifier', help='Glyph (♠️), alias (nyro), group (assembly), or email address')
+                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_share_command(args.identifier, cdp_url=args.cdp_url)
+
             else:
                 print(f"Unknown session subcommand: {subcommand}")
                 print("Run 'simexp session' for usage information")
@@ -521,6 +760,13 @@ if __name__ == "__main__":
             print("  simexp session url           - Print session note URL")
             print("  simexp session status        - Show current session info")
             print("  simexp session clear         - Clear active session")
+            print("\nSharing Commands (Issue #6):")
+            print("  simexp session share <glyph|alias|group|email>  - Share with collaborator(s)")
+            print("  simexp session publish       - Publish note (get public URL)")
+            print("  simexp session unpublish     - Unpublish note (make private)")
+            print("  simexp session collab add <email>    - Add collaborator")
+            print("  simexp session collab remove <email> - Remove collaborator")
+            print("  simexp session collab list   - List all collaborators")
             print("\nExamples:")
             print("  # Original features:")
             print("  simexp write https://app.simplenote.com/p/0ZqWsQ 'Hello!'")
@@ -532,6 +778,15 @@ if __name__ == "__main__":
             print("  echo 'Progress update' | simexp session write")
             print("  simexp session status")
             print("  simexp session open")
+            print("\n  # Sharing & publishing:")
+            print("  simexp session share ♠️                        # Share with Nyro (glyph)")
+            print("  simexp session share nyro                     # Share with Nyro (alias)")
+            print("  simexp session share assembly                 # Share with Assembly group")
+            print("  simexp session share custom@example.com       # Share with custom email")
+            print("  simexp session publish")
+            print("  simexp session collab add jerry@example.com")
+            print("  simexp session collab list")
+            print("  simexp session unpublish")
 
         else:
             print(f"Unknown command: {command}")
