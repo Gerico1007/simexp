@@ -27,15 +27,84 @@ from .session_sharing import (
 # Config file in user's home directory (not package directory)
 CONFIG_FILE = os.path.expanduser('~/.simexp/simexp.yaml')
 
+# ═══════════════════════════════════════════════════════════════
+# CDP URL RESOLUTION - Issue #11
+# ♠️ Nyro: Three-tier priority chain for multi-network support
+# ═══════════════════════════════════════════════════════════════
+
+def get_cdp_url(override: str = None) -> str:
+    """
+    Get CDP (Chrome DevTools Protocol) URL using priority chain
+
+    Priority order:
+    1. override parameter (highest - explicit function call)
+    2. SIMEXP_CDP_URL environment variable (session-specific)
+    3. CDP_URL from ~/.simexp/simexp.yaml (persistent user config)
+    4. http://localhost:9223 (fallback default)
+
+    Args:
+        override: Explicit CDP URL (e.g., from --cdp-url flag)
+
+    Returns:
+        CDP URL string
+
+    Examples:
+        # Command-line override (highest priority)
+        get_cdp_url('http://192.168.1.100:9223')
+
+        # Environment variable
+        export SIMEXP_CDP_URL=http://10.0.0.5:9223
+        get_cdp_url()  # → http://10.0.0.5:9223
+
+        # Config file
+        # ~/.simexp/simexp.yaml contains: CDP_URL: http://server:9223
+        get_cdp_url()  # → http://server:9223
+
+        # Fallback
+        get_cdp_url()  # → http://localhost:9223
+    """
+    # Priority 1: Explicit override parameter
+    if override:
+        return override
+
+    # Priority 2: Environment variable
+    env_cdp = os.environ.get('SIMEXP_CDP_URL')
+    if env_cdp:
+        return env_cdp
+
+    # Priority 3: Config file
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                config = yaml.safe_load(f)
+                if config and 'CDP_URL' in config:
+                    return config['CDP_URL']
+        except Exception:
+            pass  # Fall through to default
+
+    # Priority 4: Default localhost
+    return 'http://localhost:9223'
+
+
 def init_config():
+    """
+    Initialize SimExp configuration interactively
+    Creates ~/.simexp/simexp.yaml with user settings
+    """
     # Create config directory if it doesn't exist
     config_dir = os.path.dirname(CONFIG_FILE)
     os.makedirs(config_dir, exist_ok=True)
+
+    print("♠️🌿🎸🧵 SimExp Configuration Setup")
+    print()
 
     config = {
         'BASE_PATH': input("Enter the base path for saving content: "),
         'SOURCES': []
     }
+
+    # Source URLs configuration
+    print("\n📚 Source URLs (optional):")
     while True:
         url = input("Enter source URL (or 'done' to finish): ")
         if url.lower() == 'done':
@@ -43,9 +112,28 @@ def init_config():
         filename = input("Enter filename for this source: ")
         config['SOURCES'].append({'url': url, 'filename': filename})
 
+    # CDP URL configuration (Issue #11)
+    print("\n🌐 Chrome DevTools Protocol (CDP) Configuration:")
+    print("   CDP URL allows SimExp to connect to your authenticated Chrome browser.")
+    print("   Leave empty to use default (localhost:9223)")
+    print()
+    print("   Examples:")
+    print("   - localhost:9223 (default, for single-user setup)")
+    print("   - http://192.168.1.100:9223 (connect to server on local network)")
+    print("   - http://10.0.0.5:9223 (connect to remote server)")
+    print()
+
+    cdp_input = input("CDP URL [default: http://localhost:9223]: ").strip()
+    if cdp_input:
+        config['CDP_URL'] = cdp_input
+        print(f"   ✓ CDP URL set to: {cdp_input}")
+    else:
+        print(f"   ✓ Using default: http://localhost:9223")
+
     with open(CONFIG_FILE, 'w') as config_file:
         yaml.safe_dump(config, config_file)
-    print(f"✅ Configuration saved to {CONFIG_FILE}")
+    print(f"\n✅ Configuration saved to {CONFIG_FILE}")
+    print(f"💡 You can override CDP URL with --cdp-url flag or SIMEXP_CDP_URL env var")
 
 
 def write_command(note_url, content=None, mode='append', headless=False, cdp_url=None):
@@ -57,9 +145,12 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
         content: Content to write (if None, read from stdin)
         mode: 'append' or 'replace'
         headless: Run browser in headless mode
-        cdp_url: Chrome DevTools Protocol URL
+        cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
     """
     import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
 
     # Read from stdin if no content provided
     if content is None:
@@ -80,7 +171,7 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
         mode=mode,
         headless=headless,
         debug=True,
-        cdp_url=cdp_url
+        cdp_url=resolved_cdp
     ))
 
     if result['success']:
@@ -122,21 +213,24 @@ def read_command(note_url, headless=True):
 # ♠️🌿🎸🧵 G.Music Assembly - Session-Aware Notes
 # ═══════════════════════════════════════════════════════════════
 
-def session_start_command(ai_assistant='claude', issue_number=None, cdp_url='http://localhost:9223'):
+def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None):
     """
     Start a new session and create a Simplenote note for it
 
     Args:
         ai_assistant: AI assistant name (claude or gemini)
         issue_number: GitHub issue number being worked on
-        cdp_url: Chrome DevTools Protocol URL
+        cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
     """
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
+
     print(f"♠️🌿🎸🧵 Starting New Session")
 
     session_data = asyncio.run(create_session_note(
         ai_assistant=ai_assistant,
         issue_number=issue_number,
-        cdp_url=cdp_url
+        cdp_url=resolved_cdp
     ))
 
     print(f"\n✅ Session started successfully!")
@@ -145,15 +239,18 @@ def session_start_command(ai_assistant='claude', issue_number=None, cdp_url='htt
     print(f"💡 Tip: Use 'simexp session write' to add content to your session note")
 
 
-def session_write_command(content=None, cdp_url='http://localhost:9223'):
+def session_write_command(content=None, cdp_url=None):
     """
     Write to the current session's note using search
 
     Args:
         content: Content to write (if None, read from stdin)
-        cdp_url: Chrome DevTools Protocol URL
+        cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
     """
     import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
 
     # Get active session
     session = get_active_session()
@@ -179,7 +276,7 @@ def session_write_command(content=None, cdp_url='http://localhost:9223'):
             note_url='https://app.simplenote.com/',
             headless=False,
             debug=True,
-            cdp_url=cdp_url
+            cdp_url=resolved_cdp
         ) as writer:
             # Navigate to Simplenote
             await writer.page.goto('https://app.simplenote.com/')
@@ -218,14 +315,17 @@ def session_write_command(content=None, cdp_url='http://localhost:9223'):
         print(f"\n❌ Write failed")
 
 
-def session_read_command(cdp_url='http://localhost:9223'):
+def session_read_command(cdp_url=None):
     """
     Read content from the current session's note using search
 
     Args:
-        cdp_url: Chrome DevTools Protocol URL
+        cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
     """
     import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
 
     # Get active session
     session = get_active_session()
@@ -242,7 +342,7 @@ def session_read_command(cdp_url='http://localhost:9223'):
             note_url='https://app.simplenote.com/',
             headless=False,
             debug=True,
-            cdp_url=cdp_url
+            cdp_url=resolved_cdp
         ) as writer:
             # Navigate to Simplenote
             await writer.page.goto('https://app.simplenote.com/')
@@ -275,14 +375,17 @@ def session_read_command(cdp_url='http://localhost:9223'):
         print(f"\n❌ Could not read session note")
 
 
-def session_open_command(cdp_url='http://localhost:9223'):
+def session_open_command(cdp_url=None):
     """
     Open session note in browser using Playwright automation
 
     Args:
-        cdp_url: Chrome DevTools Protocol URL
+        cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
     """
     import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
 
     # Get active session
     session = get_active_session()
@@ -299,7 +402,7 @@ def session_open_command(cdp_url='http://localhost:9223'):
             note_url='https://app.simplenote.com/',
             headless=False,
             debug=True,
-            cdp_url=cdp_url
+            cdp_url=resolved_cdp
         ) as writer:
             # Navigate to Simplenote
             await writer.page.goto('https://app.simplenote.com/')
@@ -375,9 +478,12 @@ def session_clear_command():
     print("✅ Session cleared")
 
 
-def session_publish_command(cdp_url='http://localhost:9223'):
+def session_publish_command(cdp_url=None):
     """Publish the current session's note"""
     import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
 
     session = get_active_session()
     if not session:
@@ -387,7 +493,7 @@ def session_publish_command(cdp_url='http://localhost:9223'):
     print(f"♠️🌿🎸🧵 Publishing Session Note")
     print(f"🔮 Session: {session['session_id']}")
 
-    public_url = asyncio.run(publish_session_note(cdp_url=cdp_url))
+    public_url = asyncio.run(publish_session_note(cdp_url=resolved_cdp))
 
     if public_url:
         # Copy to clipboard
@@ -405,9 +511,12 @@ def session_publish_command(cdp_url='http://localhost:9223'):
         print(f"💡 Check Simplenote UI for the public URL")
 
 
-def session_unpublish_command(cdp_url='http://localhost:9223'):
+def session_unpublish_command(cdp_url=None):
     """Unpublish the current session's note"""
     import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
 
     session = get_active_session()
     if not session:
@@ -417,7 +526,7 @@ def session_unpublish_command(cdp_url='http://localhost:9223'):
     print(f"♠️🌿🎸🧵 Unpublishing Session Note")
     print(f"🔮 Session: {session['session_id']}")
 
-    success = asyncio.run(unpublish_session_note(cdp_url=cdp_url))
+    success = asyncio.run(unpublish_session_note(cdp_url=resolved_cdp))
 
     if success:
         print(f"\n✅ Note unpublished successfully!")
@@ -425,9 +534,12 @@ def session_unpublish_command(cdp_url='http://localhost:9223'):
         print(f"\n❌ Unpublish failed")
 
 
-def session_collab_add_command(email, cdp_url='http://localhost:9223'):
+def session_collab_add_command(email, cdp_url=None):
     """Add a collaborator to the current session's note"""
     import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
 
     session = get_active_session()
     if not session:
@@ -438,7 +550,7 @@ def session_collab_add_command(email, cdp_url='http://localhost:9223'):
     print(f"🔮 Session: {session['session_id']}")
     print(f"👤 Collaborator: {email}")
 
-    success = asyncio.run(add_session_collaborator(email, cdp_url=cdp_url))
+    success = asyncio.run(add_session_collaborator(email, cdp_url=resolved_cdp))
 
     if success:
         print(f"\n✅ Collaborator added successfully!")
@@ -446,9 +558,12 @@ def session_collab_add_command(email, cdp_url='http://localhost:9223'):
         print(f"\n❌ Failed to add collaborator")
 
 
-def session_collab_remove_command(email, cdp_url='http://localhost:9223'):
+def session_collab_remove_command(email, cdp_url=None):
     """Remove a collaborator from the current session's note"""
     import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
 
     session = get_active_session()
     if not session:
@@ -459,7 +574,7 @@ def session_collab_remove_command(email, cdp_url='http://localhost:9223'):
     print(f"🔮 Session: {session['session_id']}")
     print(f"👤 Collaborator: {email}")
 
-    success = asyncio.run(remove_session_collaborator(email, cdp_url=cdp_url))
+    success = asyncio.run(remove_session_collaborator(email, cdp_url=resolved_cdp))
 
     if success:
         print(f"\n✅ Collaborator removed successfully!")
@@ -467,9 +582,12 @@ def session_collab_remove_command(email, cdp_url='http://localhost:9223'):
         print(f"\n❌ Failed to remove collaborator")
 
 
-def session_collab_list_command(cdp_url='http://localhost:9223'):
+def session_collab_list_command(cdp_url=None):
     """List all collaborators on the current session's note"""
     import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
 
     session = get_active_session()
     if not session:
@@ -479,7 +597,7 @@ def session_collab_list_command(cdp_url='http://localhost:9223'):
     print(f"♠️🌿🎸🧵 Listing Collaborators on Session Note")
     print(f"🔮 Session: {session['session_id']}")
 
-    collaborators = asyncio.run(list_session_collaborators(cdp_url=cdp_url))
+    collaborators = asyncio.run(list_session_collaborators(cdp_url=resolved_cdp))
 
     if collaborators:
         print(f"\n✅ Found {len(collaborators)} collaborator(s):")
@@ -489,7 +607,7 @@ def session_collab_list_command(cdp_url='http://localhost:9223'):
         print(f"\n📭 No collaborators found")
 
 
-def session_share_command(identifier, cdp_url='http://localhost:9223'):
+def session_share_command(identifier, cdp_url=None):
     """
     Share session note using glyph/alias/group/email
 
@@ -501,6 +619,9 @@ def session_share_command(identifier, cdp_url='http://localhost:9223'):
     """
     import sys
 
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
+
     session = get_active_session()
     if not session:
         print("❌ No active session. Run 'simexp session start' first.")
@@ -510,7 +631,7 @@ def session_share_command(identifier, cdp_url='http://localhost:9223'):
     print(f"🔮 Session: {session['session_id']}")
     print(f"🔑 Identifier: {identifier}")
 
-    result = asyncio.run(share_session_note(identifier, cdp_url=cdp_url, debug=True))
+    result = asyncio.run(share_session_note(identifier, cdp_url=resolved_cdp, debug=True))
 
     # Result dict already prints summary in share_session_note()
     # Just handle exit code based on success
@@ -626,7 +747,7 @@ def main():
                     prog='simexp session start')
                 parser.add_argument('--ai', default='claude', choices=['claude', 'gemini'], help='AI assistant name')
                 parser.add_argument('--issue', type=int, help='GitHub issue number')
-                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                 args = parser.parse_args(sys.argv[3:])
                 session_start_command(ai_assistant=args.ai, issue_number=args.issue, cdp_url=args.cdp_url)
@@ -637,7 +758,7 @@ def main():
                     description='Write to session note',
                     prog='simexp session write')
                 parser.add_argument('content', nargs='?', help='Content to write (optional, reads from stdin if not provided)')
-                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                 args = parser.parse_args(sys.argv[3:])
                 session_write_command(content=args.content, cdp_url=args.cdp_url)
@@ -647,7 +768,7 @@ def main():
                 parser = argparse.ArgumentParser(
                     description='Read session note',
                     prog='simexp session read')
-                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                 args = parser.parse_args(sys.argv[3:])
                 session_read_command(cdp_url=args.cdp_url)
@@ -657,7 +778,7 @@ def main():
                 parser = argparse.ArgumentParser(
                     description='Open session note in browser',
                     prog='simexp session open')
-                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                 args = parser.parse_args(sys.argv[3:])
                 session_open_command(cdp_url=args.cdp_url)
@@ -676,7 +797,7 @@ def main():
                 parser = argparse.ArgumentParser(
                     description='Publish session note',
                     prog='simexp session publish')
-                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                 args = parser.parse_args(sys.argv[3:])
                 session_publish_command(cdp_url=args.cdp_url)
@@ -686,7 +807,7 @@ def main():
                 parser = argparse.ArgumentParser(
                     description='Unpublish session note',
                     prog='simexp session unpublish')
-                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                 args = parser.parse_args(sys.argv[3:])
                 session_unpublish_command(cdp_url=args.cdp_url)
@@ -709,7 +830,7 @@ def main():
                         description='Add collaborator',
                         prog='simexp session collab add')
                     parser.add_argument('email', help='Collaborator email address')
-                    parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+                    parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                     args = parser.parse_args(sys.argv[4:])
                     session_collab_add_command(args.email, cdp_url=args.cdp_url)
@@ -720,7 +841,7 @@ def main():
                         description='Remove collaborator',
                         prog='simexp session collab remove')
                     parser.add_argument('email', help='Collaborator email address')
-                    parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+                    parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                     args = parser.parse_args(sys.argv[4:])
                     session_collab_remove_command(args.email, cdp_url=args.cdp_url)
@@ -730,7 +851,7 @@ def main():
                     parser = argparse.ArgumentParser(
                         description='List collaborators',
                         prog='simexp session collab list')
-                    parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+                    parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                     args = parser.parse_args(sys.argv[4:])
                     session_collab_list_command(cdp_url=args.cdp_url)
@@ -746,7 +867,7 @@ def main():
                     description='Share session note with collaborator(s) using glyph/alias/group/email',
                     prog='simexp session share')
                 parser.add_argument('identifier', help='Glyph (♠️), alias (nyro), group (assembly), or email address')
-                parser.add_argument('--cdp-url', default='http://localhost:9223', help='Chrome DevTools Protocol URL')
+                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                 args = parser.parse_args(sys.argv[3:])
                 session_share_command(args.identifier, cdp_url=args.cdp_url)
@@ -781,6 +902,16 @@ def main():
             print("  simexp session collab add <email>    - Add collaborator")
             print("  simexp session collab remove <email> - Remove collaborator")
             print("  simexp session collab list   - List all collaborators")
+            print("\nChrome CDP Configuration (Issue #11):")
+            print("  SimExp connects to Chrome via Chrome DevTools Protocol (CDP).")
+            print("  CDP URL resolution priority:")
+            print("    1. --cdp-url flag (highest priority)")
+            print("    2. SIMEXP_CDP_URL environment variable")
+            print("    3. CDP_URL in ~/.simexp/simexp.yaml")
+            print("    4. http://localhost:9223 (default)")
+            print("\n  Run 'simexp init' to configure CDP URL in config file.")
+            print("  Use --cdp-url flag to override: simexp session write 'msg' --cdp-url http://server:9223")
+            print("  Use env var: export SIMEXP_CDP_URL=http://192.168.1.100:9223")
             print("\nExamples:")
             print("  # Original features:")
             print("  simexp write https://app.simplenote.com/p/0ZqWsQ 'Hello!'")
@@ -792,6 +923,10 @@ def main():
             print("  echo 'Progress update' | simexp session write")
             print("  simexp session status")
             print("  simexp session open")
+            print("\n  # Multi-network CDP (Issue #11):")
+            print("  simexp init                              # Configure CDP URL during setup")
+            print("  export SIMEXP_CDP_URL=http://server:9223  # Use environment variable")
+            print("  simexp session start --cdp-url http://192.168.1.100:9223  # Override with flag")
             print("\n  # Sharing & publishing:")
             print("  simexp session share ♠️                        # Share with Nyro (glyph)")
             print("  simexp session share nyro                     # Share with Nyro (alias)")

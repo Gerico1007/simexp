@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "markitdown-mcp": {
+      "command": "/opt/anaconda3/envs/src/bin/markitdown-mcp",
+      "args": [ ],
+      "env": {
+        }
+    }
+  }
+}
