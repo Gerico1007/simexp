@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='simexp',
-    version = "0.2.4",
+    version = "0.3.0",
     packages=find_packages(
         include=["simexp", "test-*.py"], exclude=["test*log", "*test*csv", "*test*png"]
     ),
@@ -12,7 +12,8 @@ setup(
         'beautifulsoup4',
         'pyperclip',
         'pyyaml',
-        'fetcher'
+        'fetcher',
+        'playwright>=1.40.0'
     ],
     entry_points={
         'console_scripts': [
