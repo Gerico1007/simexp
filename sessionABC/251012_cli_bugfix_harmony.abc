@@ -1,0 +1,187 @@
+X:1
+T:CLI Entry Point Resurrection - SimExp 0.3.1
+C:JamAI & The G.Music Assembly
+M:4/4
+L:1/8
+Q:1/4=110
+K:Gmaj
+% === SESSION METADATA ===
+% Date: October 12, 2025
+% Issue: #9 - Fix CLI entry point (help/init/session commands broken)
+% Branch: 9-fix-cli-entry-point
+% PR: #10 - Merged to main
+% Session ID: Bug discovery → Investigation → Fix → Release
+%
+% MUSICAL ARCHITECTURE:
+% - Time signature: 4/4 (stable, methodical debugging)
+% - Key: G major → E minor → G major (problem → investigation → resolution)
+% - Form: Four-movement sonata (Discovery, Investigation, Fix, Celebration)
+%
+% HARMONIC STORY:
+% Part A: Bug Discovery (G major → E minor, Adagio, pp)
+%   - User tests 0.3.0: "simexp help" fails
+%   - Even "simexp init" broken - everything fails!
+%   - Dissonance: "Invalid clipboard content. Configuration file not found."
+%
+% Part B: Investigation (E minor, Andante, p-mf, chromatic searching)
+%   - Nyro: Structural analysis - main() runs extraction BEFORE arg parsing!
+%   - Aureon: Emotional grounding - user confusion, need for clarity
+%   - Synth: Config path points to read-only package directory
+%   - Assembly polyphony: Each voice investigates independently
+%
+% Part C: The Fix (E minor → G major, Moderato, crescendo mf-f)
+%   - Config path: Package dir → ~/.simexp/ (user-writable)
+%   - main() → run_extraction() (renamed)
+%   - New main(): Argument parsing FIRST, then validation
+%   - Testing: All commands work! help, init, session - perfect!
+%
+% Part D: Release Harmony (G major, Allegro, ff-fff)
+%   - PR #10 merged to main
+%   - Tag v0.3.1 created and pushed
+%   - PyPI publication successful
+%   - Assembly celebration: Four voices unified
+%
+% EMOTIONAL MARKERS:
+% - Opening: Confusion, broken CLI (pp, E minor)
+% - Climax: Fix discovered, tests passing (ff, G major)
+% - Resolution: Released to PyPI, users can use CLI (fff, triumphant)
+%
+% TECHNICAL ENCODING:
+% - Dissonance = Broken CLI commands
+% - Chromatic searching = Debugging investigation
+% - Modulation E→G = Bug fixed, functionality restored
+% - Four-voice polyphony = Assembly collaboration
+% - Homorhythm = Unified in release celebration
+
+%% === PART A: BUG DISCOVERY - "Everything's Broken!" ===
+%% G major → E minor (Adagio ♩=70, pp, confused dissonance)
+V:1 clef=treble name="User"
+%%MIDI program 0
+[Q:1/4=70]
+% User tests the installed package
+"G"G2 B2 d2 g2 | % "simexp help" - expecting help...
+"Em"e6 z2 |] % ...silence. Nothing works. (pp, held)
+% Dissonance: Command fails before checking arguments
+
+%% === PART B: INVESTIGATION - Assembly Polyphony ===
+%% E minor (Andante ♩=90, p-mf, chromatic searching)
+V:1 clef=treble name="Nyro"
+%%MIDI program 0
+[Q:1/4=90]
+% Nyro analyzes structure: main() runs extraction FIRST
+"Em"e2 d2 c2 B2 | % Descending investigation
+A2 ^G2 A2 B2 | % Chromatic searching (structural analysis)
+c2 d2 e2 f2 | % Pattern recognition: arg parsing too late!
+"D"^f4 g4 |] % Discovery: Entry point inverted (dominant tension)
+
+V:2 clef=treble name="Aureon"
+%%MIDI program 48
+% Aureon reflects: User confusion, need for clarity
+"Em"B,2 E2 G2 B2 | % Emotional grounding (legato)
+"Am"A2 G2 F2 E2 | % Empathy: Understanding user frustration
+"D"^F2 A2 d2 ^f2 | % Rising hope: Solution emerging
+"G"g4 z4 |] % Trust maintained (resolution approaching)
+
+V:3 clef=treble name="Synth"
+%%MIDI program 71
+% Synth diagnoses: Config path points to read-only directory
+"Em"E,2 E,2 E,2 E,2 | % Terminal pulse (staccato ostinato)
+"Am"A,2 A,2 "B7"^D2 ^D2 | % Config investigation (chromatic)
+"C"C2 E2 "D7"^F2 A2 | % Path discovery (ascending)
+"G"G,4 z4 |] % Solution found (grounding bass)
+
+%% === PART C: THE FIX - Modulation to Victory ===
+%% E minor → G major (Moderato ♩=110, crescendo mf→f)
+V:1 clef=treble name="Assembly"
+%%MIDI program 0
+[Q:1/4=110]
+% Three-phase fix (mf, building confidence)
+"Em"e2 ^d2 e2 ^f2 | % Phase 1: Config path fix (chromatic rise)
+"Am"a2 g2 f2 e2 | % Phase 2: Rename main() → run_extraction()
+"D7"d2 ^c2 d2 ^f2 | % Phase 3: New main() - args FIRST! (dominant)
+"G"g6 z2 |] % MODULATION: E minor → G major! (f, triumphant)
+
+V:2 clef=treble name="Testing"
+%%MIDI program 73
+% Testing success: All commands work!
+"G"B2 d2 g2 b2 | % simexp help ✓ (ascending joy)
+"G"B2 d2 g2 b2 | % simexp init ✓ (repetition - confirmation)
+"D"A2 ^f2 d'2 a2 | % simexp session ✓ (high register - victory!)
+"G"g6 z2 |] % Perfect! (f, celebration)
+
+%% === PART D: RELEASE HARMONY - Assembly Celebration ===
+%% G major (Allegro ♩=130, ff-fff, triumphant homorhythm)
+V:1 clef=treble name="PR Merge"
+%%MIDI program 61
+[Q:1/4=130]
+% Four-voice brass fanfare (ff, all voices same rhythm)
+"G"[G2B2d2g2] [G2B2d2g2] | % PR #10 merged! (fortissimo chord)
+"D7"[A2^c2e2a2] [A2^c2e2a2] | % Tag v0.3.1 pushed! (dominant buildup)
+"G"[G2B2d2g2] "C"[c2e2g2c'2] | % PyPI upload successful! (fff)
+"G/D"[d2g2b2d'2] "D7"[d2^f2a2c'2] | % Assembly unified! (climax)
+"G"[G4B4d4g4] |] % COMPLETE VICTORY! (fff, fermata)
+
+%% === CLOSING MEDITATION - Peaceful Resolution ===
+%% G major (Adagio ♩=60, pp→ppp, molto legato)
+V:1 clef=treble name="Reflection"
+%%MIDI program 46
+[Q:1/4=60]
+% Harp-like arpeggios (pp, savoring completion)
+"G"G2 B2 d2 g2 | % Users can now use CLI (peaceful)
+"Em"e2 g2 b2 e'2 | % All commands working (harmonic)
+"C"c'2 g2 e2 c2 | % Bug → Fix → Release (descending calm)
+"G"G,2 D2 G2 B,2 | % Full circle closure (ppp)
+G,8 |] % Final breath (fermata, very soft)
+
+%% === ASSEMBLY SIGNATURES - Each Voice Featured ===
+V:1 clef=treble name="Nyro"
+%%MIDI program 0
+% Structural lattice: Perfect fifths progression
+"G"G2 D2 G2 d2 | % Lattice framework (G-D-G)
+g4 z4 |]
+
+V:2 clef=treble name="Aureon"
+%%MIDI program 48
+% Emotional flow: Legato wave
+"G"B2 d2 g2 f2 | % Flowing arc (warm strings)
+e4 z4 |]
+
+V:3 clef=treble name="JamAI"
+%%MIDI program 73
+% Melodic ascent: Creative joy
+"G"d2 e2 ^f2 g2 | % Ascending celebration (flute)
+a2 b2 c'4 |]
+
+V:4 clef=bass name="Synth"
+%%MIDI program 71
+% Terminal pulse: Grounding rhythm
+"G"G,2 G,2 D2 D2 | % Steady ostinato (bass clarinet)
+G,4 z4 |]
+
+%% === CONVERGENCE - All Voices Unite ===
+V:1 clef=treble name="Assembly"
+%%MIDI program 61
+% All four voices converge to single tone
+[Q:1/4=50]
+"G"[G,2G2B2d2g2] z2 | % Four-part harmony (mp)
+[G,2G2B2d2g2] z2 | % Closer unity (p)
+[G,4G4] z4 | % Two voices remain (pp)
+G,8 |] % Single final tone - UNITY (ppp, fermata)
+
+% === FINAL METADATA ===
+% Session Duration: Bug discovery → Fix → Release
+% Assembly Voices Active: All four (♠️🌿🎸🧵)
+% Modulation Journey: G → Em (bug) → G (fix)
+% Emotional Arc: Confusion → Investigation → Victory → Peace
+% Technical Achievement: CLI fully functional, 0.3.1 released to PyPI
+%
+% ♠️ Nyro: Structural analysis revealed entry point inversion
+% 🌿 Aureon: Emotional grounding maintained user trust
+% 🎸 JamAI: Musical encoding of debugging to triumph
+% 🧵 Synth: Orchestrated fix, PR merge, and PyPI release
+%
+% 🎸 JamAI - The Glyph Harmonizer
+% "From broken commands to harmonic release - the CLI sings again!"
+%
+% ♠️🌿🎸🧵 G.Music Assembly - October 12, 2025
+% Session: CLI Entry Point Resurrection (Issue #9 → PR #10 → v0.3.1)
