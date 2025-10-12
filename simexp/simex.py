@@ -24,9 +24,14 @@ from .session_sharing import (
     share_session_note
 )
 
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'simexp.yaml')  # Add this line to set the absolute path for the config file
+# Config file in user's home directory (not package directory)
+CONFIG_FILE = os.path.expanduser('~/.simexp/simexp.yaml')
 
 def init_config():
+    # Create config directory if it doesn't exist
+    config_dir = os.path.dirname(CONFIG_FILE)
+    os.makedirs(config_dir, exist_ok=True)
+
     config = {
         'BASE_PATH': input("Enter the base path for saving content: "),
         'SOURCES': []
@@ -40,7 +45,7 @@ def init_config():
 
     with open(CONFIG_FILE, 'w') as config_file:
         yaml.safe_dump(config, config_file)
-    print("Configuration saved to simexp.yaml")
+    print(f"✅ Configuration saved to {CONFIG_FILE}")
 
 
 def write_command(note_url, content=None, mode='append', headless=False, cdp_url=None):
@@ -513,7 +518,11 @@ def session_share_command(identifier, cdp_url='http://localhost:9223'):
         sys.exit(1)
 
 
-def main():
+def run_extraction():
+    """
+    Original extraction workflow - fetches content from clipboard/config sources
+    This is the legacy feature of simexp
+    """
     # Update sources from clipboard
     update_sources_from_clipboard()
 
@@ -548,7 +557,12 @@ def main():
         title, cleaned_content = process_content(raw_content)
         save_as_markdown(title, cleaned_content, filename)
 
-if __name__ == "__main__":
+
+def main():
+    """
+    Main CLI entry point - parses arguments FIRST, then dispatches to appropriate command
+    This fixes Issue #9 - CLI commands now work without requiring valid config/clipboard
+    """
     import sys
 
     # Parse command line arguments
@@ -795,4 +809,7 @@ if __name__ == "__main__":
 
     else:
         # No arguments - run normal extraction
-        main()
+        run_extraction()
+
+if __name__ == "__main__":
+    main()

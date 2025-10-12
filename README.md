@@ -508,7 +508,7 @@ google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
 
 ---
 
-**Version**: 0.3.0
+**Version**: 0.3.1
 **Last Updated**: October 9, 2025
 **Status**: ✅ Production Ready
 
