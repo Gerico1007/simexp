@@ -8,6 +8,9 @@ import yaml
 from .imp_clip import update_sources_from_clipboard, is_clipboard_content_valid
 import asyncio
 import pyperclip
+import subprocess
+import shutil
+import time
 from .playwright_writer import write_to_note, read_from_note, SimplenoteWriter
 from .session_manager import (
     create_session_note,
@@ -86,6 +89,70 @@ def get_cdp_url(override: str = None) -> str:
     return 'http://localhost:9222'
 
 
+# ═══════════════════════════════════════════════════════════════
+# CHROME CDP HELPER FUNCTIONS - Issue #17
+# ♠️🌿🎸🧵 G.Music Assembly - Auto-launch Chrome for init
+# ═══════════════════════════════════════════════════════════════
+
+def find_chrome_executable():
+    """
+    Find Chrome/Chromium executable on the system
+
+    Returns:
+        str: Chrome command name, or None if not found
+    """
+    candidates = ['google-chrome', 'chromium', 'chromium-browser', 'chrome']
+    for cmd in candidates:
+        if shutil.which(cmd):
+            return cmd
+    return None
+
+
+def check_chrome_cdp_running(port=9222):
+    """
+    Check if Chrome CDP is running on specified port
+
+    Args:
+        port: CDP port number (default: 9222)
+
+    Returns:
+        bool: True if Chrome CDP is accessible, False otherwise
+    """
+    try:
+        response = requests.get(f'http://localhost:{port}/json/version', timeout=2)
+        return response.status_code == 200
+    except:
+        return False
+
+
+def launch_chrome_cdp(port=9222):
+    """
+    Launch Chrome with CDP enabled
+
+    Args:
+        port: CDP port number (default: 9222)
+
+    Returns:
+        bool: True if Chrome launched successfully, False otherwise
+    """
+    chrome_cmd = find_chrome_executable()
+    if not chrome_cmd:
+        return False
+
+    try:
+        subprocess.Popen([
+            chrome_cmd,
+            f'--remote-debugging-port={port}',
+            '--user-data-dir=' + os.path.expanduser('~/.chrome-simexp')
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        # Wait for Chrome to start
+        time.sleep(3)
+        return check_chrome_cdp_running(port)
+    except Exception:
+        return False
+
+
 def init_config():
     """
     Initialize SimExp configuration interactively
@@ -133,7 +200,47 @@ def init_config():
     with open(CONFIG_FILE, 'w') as config_file:
         yaml.safe_dump(config, config_file)
     print(f"\n✅ Configuration saved to {CONFIG_FILE}")
-    print(f"💡 You can override CDP URL with --cdp-url flag or SIMEXP_CDP_URL env var")
+
+    # ═══════════════════════════════════════════════════════════════
+    # AUTO-LAUNCH CHROME CDP - Issue #17
+    # ♠️🌿🎸🧵 G.Music Assembly - One-command setup
+    # ═══════════════════════════════════════════════════════════════
+
+    # Check if Chrome CDP is running
+    if not check_chrome_cdp_running():
+        print("\n🚀 Chrome CDP Setup")
+        print("   SimExp needs Chrome running with remote debugging.")
+        launch = input("   Launch Chrome automatically? [Y/n]: ").strip().lower()
+
+        if launch != 'n':
+            chrome_cmd = find_chrome_executable()
+            if chrome_cmd:
+                print(f"   🔍 Found Chrome: {chrome_cmd}")
+                if launch_chrome_cdp():
+                    print("   ✓ Chrome launched with CDP on port 9222")
+                else:
+                    print("   ⚠️  Could not launch Chrome automatically")
+                    print("\n   Run manually:")
+                    print(f"   {chrome_cmd} --remote-debugging-port=9222 --user-data-dir=~/.chrome-simexp &")
+            else:
+                print("   ⚠️  Could not find Chrome/Chromium on your system")
+                print("\n   Install Chrome and run:")
+                print("   google-chrome --remote-debugging-port=9222 --user-data-dir=~/.chrome-simexp &")
+        else:
+            print("\n   Run this command to start Chrome with CDP:")
+            chrome_cmd = find_chrome_executable() or 'google-chrome'
+            print(f"   {chrome_cmd} --remote-debugging-port=9222 --user-data-dir=~/.chrome-simexp &")
+    else:
+        print("\n✓ Chrome CDP is already running on port 9222")
+
+    # Show login instructions
+    print("\n📝 IMPORTANT - Complete Setup:")
+    print("   1. A Chrome window has opened (or is already open)")
+    print("   2. Go to: https://app.simplenote.com")
+    print("   3. Login with your Simplenote account")
+    print("   4. Keep this Chrome window open while using SimExp")
+    print()
+    print("💡 Ready to test? Run: simexp session start")
 
 
 def write_command(note_url, content=None, mode='append', headless=False, cdp_url=None):
