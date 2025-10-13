@@ -6,7 +6,7 @@ Usage:
     python test_session.py
 
 Requirements:
-    - Chrome running with CDP: google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
+    - Chrome running with CDP: google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
     - Logged into Simplenote
 """
 
@@ -91,11 +91,11 @@ async def test_session_creation():
     # Verify Chrome is running
     import requests
     try:
-        response = requests.get('http://localhost:9223/json/version', timeout=2)
+        response = requests.get('http://localhost:9222/json/version', timeout=2)
         print(f"✅ Chrome CDP accessible: {response.json().get('Browser', 'Unknown')}")
     except:
         print("❌ Chrome not running with CDP!")
-        print("   Run: google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &")
+        print("   Run: google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &")
         return
 
     print("\n🔮 Creating test session note...")
@@ -105,7 +105,7 @@ async def test_session_creation():
     session_data = await create_session_note(
         ai_assistant='claude',
         issue_number=4,
-        cdp_url='http://localhost:9223',
+        cdp_url='http://localhost:9222',
         debug=True
     )
 
