@@ -2,22 +2,31 @@ import yaml
 import os
 import pyperclip
 
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'simexp.yaml')
+# Config file in user's home directory (consistent with simex.py)
+# Issue #15: Fixed path inconsistency - was pointing to package directory
+CONFIG_FILE = os.path.expanduser('~/.simexp/simexp.yaml')
 MAX_SOURCES = 3
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
-        save_config({'BASE_PATH': os.path.dirname(__file__)})  # Create a config file with default BASE_PATH if it does not exist
+        # Create config directory if it doesn't exist
+        config_dir = os.path.dirname(CONFIG_FILE)
+        os.makedirs(config_dir, exist_ok=True)
+        # Create default config
+        save_config({'BASE_PATH': os.path.expanduser('~/'), 'SOURCES': []})
     with open(CONFIG_FILE, 'r') as file:
         config = yaml.safe_load(file)
         if config is None:
             config = {}
         if 'BASE_PATH' not in config:
-            config['BASE_PATH'] = os.path.dirname(__file__)
+            config['BASE_PATH'] = os.path.expanduser('~/')
             save_config(config)
         return config
 
 def save_config(config):
+    # Ensure config directory exists
+    config_dir = os.path.dirname(CONFIG_FILE)
+    os.makedirs(config_dir, exist_ok=True)
     with open(CONFIG_FILE, 'w') as file:
         yaml.safe_dump(config, file)
 
