@@ -40,7 +40,7 @@ def get_cdp_url(override: str = None) -> str:
     1. override parameter (highest - explicit function call)
     2. SIMEXP_CDP_URL environment variable (session-specific)
     3. CDP_URL from ~/.simexp/simexp.yaml (persistent user config)
-    4. http://localhost:9223 (fallback default)
+    4. http://localhost:9222 (fallback default)
 
     Args:
         override: Explicit CDP URL (e.g., from --cdp-url flag)
@@ -50,18 +50,18 @@ def get_cdp_url(override: str = None) -> str:
 
     Examples:
         # Command-line override (highest priority)
-        get_cdp_url('http://192.168.1.100:9223')
+        get_cdp_url('http://192.168.1.100:9222')
 
         # Environment variable
-        export SIMEXP_CDP_URL=http://10.0.0.5:9223
-        get_cdp_url()  # → http://10.0.0.5:9223
+        export SIMEXP_CDP_URL=http://10.0.0.5:9222
+        get_cdp_url()  # → http://10.0.0.5:9222
 
         # Config file
-        # ~/.simexp/simexp.yaml contains: CDP_URL: http://server:9223
-        get_cdp_url()  # → http://server:9223
+        # ~/.simexp/simexp.yaml contains: CDP_URL: http://server:9222
+        get_cdp_url()  # → http://server:9222
 
         # Fallback
-        get_cdp_url()  # → http://localhost:9223
+        get_cdp_url()  # → http://localhost:9222
     """
     # Priority 1: Explicit override parameter
     if override:
@@ -82,8 +82,8 @@ def get_cdp_url(override: str = None) -> str:
         except Exception:
             pass  # Fall through to default
 
-    # Priority 4: Default localhost
-    return 'http://localhost:9223'
+    # Priority 4: Default localhost (Chrome DevTools Protocol standard port)
+    return 'http://localhost:9222'
 
 
 def init_config():
@@ -115,20 +115,20 @@ def init_config():
     # CDP URL configuration (Issue #11)
     print("\n🌐 Chrome DevTools Protocol (CDP) Configuration:")
     print("   CDP URL allows SimExp to connect to your authenticated Chrome browser.")
-    print("   Leave empty to use default (localhost:9223)")
+    print("   Leave empty to use default (localhost:9222)")
     print()
     print("   Examples:")
-    print("   - localhost:9223 (default, for single-user setup)")
-    print("   - http://192.168.1.100:9223 (connect to server on local network)")
-    print("   - http://10.0.0.5:9223 (connect to remote server)")
+    print("   - localhost:9222 (default, for single-user setup)")
+    print("   - http://192.168.1.100:9222 (connect to server on local network)")
+    print("   - http://10.0.0.5:9222 (connect to remote server)")
     print()
 
-    cdp_input = input("CDP URL [default: http://localhost:9223]: ").strip()
+    cdp_input = input("CDP URL [default: http://localhost:9222]: ").strip()
     if cdp_input:
         config['CDP_URL'] = cdp_input
         print(f"   ✓ CDP URL set to: {cdp_input}")
     else:
-        print(f"   ✓ Using default: http://localhost:9223")
+        print(f"   ✓ Using default: http://localhost:9222")
 
     with open(CONFIG_FILE, 'w') as config_file:
         yaml.safe_dump(config, config_file)
@@ -908,10 +908,10 @@ def main():
             print("    1. --cdp-url flag (highest priority)")
             print("    2. SIMEXP_CDP_URL environment variable")
             print("    3. CDP_URL in ~/.simexp/simexp.yaml")
-            print("    4. http://localhost:9223 (default)")
+            print("    4. http://localhost:9222 (default)")
             print("\n  Run 'simexp init' to configure CDP URL in config file.")
-            print("  Use --cdp-url flag to override: simexp session write 'msg' --cdp-url http://server:9223")
-            print("  Use env var: export SIMEXP_CDP_URL=http://192.168.1.100:9223")
+            print("  Use --cdp-url flag to override: simexp session write 'msg' --cdp-url http://server:9222")
+            print("  Use env var: export SIMEXP_CDP_URL=http://192.168.1.100:9222")
             print("\nExamples:")
             print("  # Original features:")
             print("  simexp write https://app.simplenote.com/p/0ZqWsQ 'Hello!'")
@@ -925,8 +925,8 @@ def main():
             print("  simexp session open")
             print("\n  # Multi-network CDP (Issue #11):")
             print("  simexp init                              # Configure CDP URL during setup")
-            print("  export SIMEXP_CDP_URL=http://server:9223  # Use environment variable")
-            print("  simexp session start --cdp-url http://192.168.1.100:9223  # Override with flag")
+            print("  export SIMEXP_CDP_URL=http://server:9222  # Use environment variable")
+            print("  simexp session start --cdp-url http://192.168.1.100:9222  # Override with flag")
             print("\n  # Sharing & publishing:")
             print("  simexp session share ♠️                        # Share with Nyro (glyph)")
             print("  simexp session share nyro                     # Share with Nyro (alias)")

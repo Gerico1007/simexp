@@ -42,10 +42,10 @@ For `simexp` to communicate with your browser, you need to launch a special inst
 
 ```bash
 # Launch Chrome with a remote debugging port
-google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
+google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
 ```
 
-*   `--remote-debugging-port=9223`: This opens a communication channel that `simexp` uses to connect to your browser.
+*   `--remote-debugging-port=9222`: This opens a communication channel that `simexp` uses to connect to your browser.
 *   `--user-data-dir=/tmp/chrome-simexp`: This creates a separate profile for this Chrome instance, so it doesn't interfere with your main browsing session.
 *   `&`: This runs the command in the background, so you can continue to use your terminal.
 
@@ -61,7 +61,7 @@ First, you need to launch a special instance of Google Chrome that the script ca
 
 ```bash
 # Launch Chrome with a remote debugging port
-google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
+google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
 ```
 
 In the new Chrome window that opens, log in to your Simplenote account: https://app.simplenote.com
@@ -79,7 +79,7 @@ playwright install chromium
 Now you can write to your most recently modified Simplenote note directly from your terminal:
 
 ```bash
-python -m simexp.simex write "Hello from the Assembly!" --cdp-url http://localhost:9223
+python -m simexp.simex write "Hello from the Assembly!" --cdp-url http://localhost:9222
 ```
 
 Check your Simplenote note - the message is there! It will also sync to your other devices. ✨
@@ -169,7 +169,7 @@ playwright install chromium
 This is the easiest way to use `simexp`. It will automatically find your last modified note and append your message to it.
 
 ```bash
-python -m simexp.simex write "Your message here" --cdp-url http://localhost:9223
+python -m simexp.simex write "Your message here" --cdp-url http://localhost:9222
 ```
 
 ### Write to a Specific Note
@@ -177,13 +177,13 @@ python -m simexp.simex write "Your message here" --cdp-url http://localhost:9223
 If you need to write to a specific note, you can provide its URL.
 
 ```bash
-python -m simexp.simex write "Your message here" --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9223
+python -m simexp.simex write "Your message here" --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9222
 ```
 
 ### Read from a Specific Note
 
 ```bash
-python -m simexp.simex read --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9223
+python -m simexp.simex read --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9222
 ```
 
 ### Extract Content from Simplenote URLs
@@ -313,7 +313,7 @@ python test_session.py
 
 ```bash
 # 1. Launch Chrome with debugging
-google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
+google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
 
 # 2. Login to Simplenote in Chrome window
 
@@ -325,7 +325,7 @@ from simexp.playwright_writer import write_to_note
 result = asyncio.run(write_to_note(
     'https://app.simplenote.com',
     '🔮 TEST MESSAGE - If you see this, it works!',
-    cdp_url='http://localhost:9223',
+    cdp_url='http://localhost:9222',
     debug=True
 ))
 
@@ -380,12 +380,12 @@ All Your Devices! 🎉
 
 ## 🔍 Troubleshooting
 
-### "Connection refused" to localhost:9223
+### "Connection refused" to localhost:9222
 
 Chrome not running with remote debugging:
 ```bash
-google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
-curl http://localhost:9223/json/version  # Should return JSON
+google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
+curl http://localhost:9222/json/version  # Should return JSON
 ```
 
 ### Message appears then disappears
@@ -483,10 +483,10 @@ This project is part of the G.Music Assembly framework. Contributions are welcom
 python -m simexp.simex
 
 # Write to Simplenote
-python3 -c "import asyncio; from simexp.playwright_writer import write_to_note; asyncio.run(write_to_note('https://app.simplenote.com', 'Message', cdp_url='http://localhost:9223'))"
+python3 -c "import asyncio; from simexp.playwright_writer import write_to_note; asyncio.run(write_to_note('https://app.simplenote.com', 'Message', cdp_url='http://localhost:9222'))"
 
 # Read from Simplenote
-python3 -c "import asyncio; from simexp.playwright_writer import read_from_note; print(asyncio.run(read_from_note('https://app.simplenote.com', cdp_url='http://localhost:9223')))"
+python3 -c "import asyncio; from simexp.playwright_writer import read_from_note; print(asyncio.run(read_from_note('https://app.simplenote.com', cdp_url='http://localhost:9222')))"
 
 # Session Commands
 python -m simexp.simex session start --ai claude --issue 4
@@ -495,7 +495,7 @@ python -m simexp.simex session status
 python -m simexp.simex session open
 
 # Launch Chrome with CDP
-google-chrome --remote-debugging-port=9223 --user-data-dir=/tmp/chrome-simexp &
+google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
 ```
 
 ---

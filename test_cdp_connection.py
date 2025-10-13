@@ -8,9 +8,10 @@ Step-by-step guide for Jerry's cross-device flow
 
 import asyncio
 from simexp.playwright_writer import SimplenoteWriter
+from simexp.simex import get_cdp_url
 
-# CDP endpoint where your Chrome is running
-CDP_URL = "http://localhost:9222"
+# CDP endpoint where your Chrome is running (uses priority chain)
+CDP_URL = get_cdp_url()
 
 async def test_connection():
     """Test connecting to existing Chrome session"""
@@ -114,7 +115,7 @@ async def test_aureon_write():
     return False
 
 if __name__ == "__main__":
-    print("""
+    print(f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║  SimExp CDP Connection Guide                                ║
 ║  ♠️🌿🎸🧵 G.Music Assembly                                    ║
@@ -122,9 +123,11 @@ if __name__ == "__main__":
 
 BEFORE RUNNING THIS SCRIPT:
 
-1. Launch Chrome with remote debugging:
+1. Launch Chrome with remote debugging (Chrome DevTools Protocol standard port):
 
-   chromium --remote-debugging-port=9222 &
+   chromium --remote-debugging-port=9222 --user-data-dir=~/.chrome-simexp &
+
+   Note: --user-data-dir is REQUIRED for Chrome 136+ security
 
 2. In that Chrome window, open Simplenote:
 
@@ -135,6 +138,10 @@ BEFORE RUNNING THIS SCRIPT:
 4. Open the Aureon note (or any note you want to test)
 
 5. Keep Chrome window open and run this script
+
+🔧 CDP Configuration:
+   Using: {CDP_URL}
+   (Priority: --cdp-url flag > SIMEXP_CDP_URL env > config file > default)
 
 Press Enter when ready...
 """)
@@ -162,4 +169,6 @@ Press Enter when ready...
             print("💡 Check the screenshots in /tmp/ to see what we found")
     else:
         print("\n❌ Connection failed - check the errors above")
-        print("💡 Make sure Chrome is running with: chromium --remote-debugging-port=9222")
+        print(f"💡 Make sure Chrome is running with: chromium --remote-debugging-port=9222 --user-data-dir=~/.chrome-simexp &")
+        print(f"💡 Currently trying to connect to: {CDP_URL}")
+        print(f"💡 Override with: export SIMEXP_CDP_URL=http://localhost:9222")
