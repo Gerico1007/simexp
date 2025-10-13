@@ -751,13 +751,17 @@ def run_extraction():
     Original extraction workflow - fetches content from clipboard/config sources
     This is the legacy feature of simexp
     """
+    print("♠️🌿🎸🧵 SimExp Extraction Mode")
+    print()
+
     # Update sources from clipboard
     update_sources_from_clipboard()
 
     # Load configuration from YAML file
     config_path = CONFIG_FILE
     if not os.path.exists(config_path):
-        print(f"Configuration file '{config_path}' not found. Please run 'simexp init' to create it.")
+        print(f"❌ Configuration file '{config_path}' not found.")
+        print(f"💡 Please run 'simexp init' to create it.")
         return
 
     with open(config_path, 'r') as config_file:
@@ -765,10 +769,16 @@ def run_extraction():
 
     # Check if clipboard content is valid
     if not is_clipboard_content_valid():
-        print("Invalid clipboard content. Proceeding with existing websites from configuration.")
-        sources = config['SOURCES']
+        print("📋 No valid URL in clipboard. Using sources from configuration.")
+        sources = config.get('SOURCES', [])
     else:
-        sources = config['CLIPBOARD_SOURCES']
+        print("📋 Valid URL found in clipboard! Using clipboard sources.")
+        sources = config.get('CLIPBOARD_SOURCES', [])
+
+    if not sources:
+        print("❌ No sources configured.")
+        print("💡 Run 'simexp init' and add source URLs to your configuration.")
+        return
 
     base_path = config['BASE_PATH']
 
@@ -777,13 +787,70 @@ def run_extraction():
     daily_folder = os.path.join(base_path, current_date)
     os.makedirs(daily_folder, exist_ok=True)
 
+    print(f"📁 Output: {daily_folder}/")
+    print()
+    print(f"📚 Fetching {len(sources)} source(s)...")
+    print()
+
+    # Track statistics
+    success_count = 0
+    fail_count = 0
+
     # Fetch, process, and save content for each source
-    for source in sources:
+    for i, source in enumerate(sources, 1):
         url = source['url']
         filename = source['filename']
+
+        # Determine emoji based on filename
+        emoji_map = {
+            'aureon': '🌿',
+            'nyro': '♠️',
+            'jamai': '🎸',
+            'synth': '🧵'
+        }
+        emoji = emoji_map.get(filename.lower(), '📄')
+
+        print(f"{emoji} {filename.title()}")
+        print(f"   🌐 {url}")
+        print(f"   ⬇️  Fetching...", end=" ", flush=True)
+
         raw_content = fetch_content(url)
+
+        if raw_content is None:
+            print("❌")
+            print(f"   ⚠️  Failed to fetch content")
+            print()
+            fail_count += 1
+            continue
+
+        print("✓")
+
+        # Process content
         title, cleaned_content = process_content(raw_content)
-        save_as_markdown(title, cleaned_content, filename)
+        content_length = len(cleaned_content)
+        print(f"   📄 {content_length:,} characters extracted")
+
+        # Save to markdown
+        success, result = save_as_markdown(title, cleaned_content, base_path, daily_folder, filename)
+
+        if success:
+            print(f"   💾 Saved: {result}")
+            success_count += 1
+        else:
+            print(f"   ❌ Save failed: {result}")
+            fail_count += 1
+
+        print()
+
+    # Summary
+    print("=" * 60)
+    if fail_count == 0:
+        print(f"✅ Extraction complete! {success_count} source(s) archived.")
+    else:
+        print(f"⚠️  Extraction finished with errors:")
+        print(f"   ✓ Success: {success_count}")
+        print(f"   ✗ Failed: {fail_count}")
+    print("=" * 60)
 
 
 def main():
