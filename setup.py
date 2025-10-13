@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='simexp',
-    version = "0.3.4",
+    version = "0.3.5",
     packages=find_packages(
         include=["simexp", "test-*.py"], exclude=["test*log", "*test*csv", "*test*png"]
     ),
