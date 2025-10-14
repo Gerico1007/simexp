@@ -116,6 +116,7 @@ simexp session start --ai claude --issue 42  # Create session note
 simexp session write "Progress update"       # Write to session
 simexp session status                        # Show session info
 simexp session open                          # Open in browser
+simexp session add path/to/file --heading "Optional Heading"  # Add file content to session
 ```
 
 ---

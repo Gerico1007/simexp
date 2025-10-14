@@ -15,6 +15,7 @@ from pathlib import Path
 import yaml
 
 from .playwright_writer import SimplenoteWriter
+from .session_file_handler import SessionFileHandler
 
 
 class SessionState:
@@ -323,6 +324,7 @@ if __name__ == "__main__":
         print("  Create session: python session_manager.py create [--ai <assistant>] [--issue <number>]")
         print("  Get session:    python session_manager.py get")
         print("  Clear session:  python session_manager.py clear")
+        print("  Add file:       python session_manager.py add <file_path> [--heading <text>]")
         sys.exit(1)
 
     command = sys.argv[1]
