@@ -1,6 +1,7 @@
 import os
 import requests
 from datetime import datetime
+from typing import Optional
 from .simfetcher import fetch_content
 from .processor import process_content
 from .archiver import save_as_markdown
@@ -26,6 +27,7 @@ from .session_sharing import (
     list_session_collaborators,
     share_session_note
 )
+from .session_manager import handle_session_add
 
 # Config file in user's home directory (not package directory)
 CONFIG_FILE = os.path.expanduser('~/.simexp/simexp.yaml')
@@ -345,6 +347,51 @@ def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None
     print(f"🔑 Search Key: {session_data['search_key']}")
     print(f"💡 Tip: Use 'simexp session write' to add content to your session note")
 
+
+def session_add_command(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None):
+    """
+    Add file content to the current session's note using clipboard for efficiency
+    
+    Args:
+        file_path: Path to the file to add
+        heading: Optional heading to add before the file content
+        cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
+    """
+    import sys
+    from pathlib import Path
+    from .session_file_handler import SessionFileHandler
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
+
+    # Get active session
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    # Check file exists
+    file_path = Path(file_path).resolve()
+    if not file_path.exists():
+        print(f"❌ File not found: {file_path}")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Adding File to Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+    print(f"📄 File: {file_path.name}")
+
+    # Read and format file content
+    handler = SessionFileHandler()
+    try:
+        content = handler.read_file(str(file_path))
+        formatted_content = handler.format_content(str(file_path), content, heading)
+        print(f"📋 File content formatted ({len(formatted_content)} chars)")
+    except Exception as e:
+        print(f"❌ Error preparing file content: {e}")
+        sys.exit(1)
+
+    # Use the existing session_write_command to append content
+    session_write_command(formatted_content, cdp_url=resolved_cdp)
 
 def session_write_command(content=None, cdp_url=None):
     """
@@ -965,6 +1012,18 @@ def main():
 
             elif subcommand == 'clear':
                 session_clear_command()
+                
+            elif subcommand == 'add':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Add file content to session note',
+                    prog='simexp session add')
+                parser.add_argument('file', help='Path to the file to add')
+                parser.add_argument('--heading', help='Optional heading to add before the file content')
+                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_add_command(args.file, heading=args.heading, cdp_url=args.cdp_url)
 
             elif subcommand == 'publish':
                 import argparse
@@ -1064,6 +1123,7 @@ def main():
             print("  simexp session start [--ai <assistant>] [--issue <number>]")
             print("                               - Start new session with Simplenote note")
             print("  simexp session write <msg>   - Write to current session's note")
+            print("  simexp session add <file>    - Add file content to session note")
             print("  simexp session read          - Read current session's note")
             print("  simexp session open          - Open session note in browser")
             print("  simexp session url           - Print session note URL")

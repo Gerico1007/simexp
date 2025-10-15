@@ -14,8 +14,51 @@ from typing import Optional, Dict, List
 from pathlib import Path
 import yaml
 
-from .playwright_writer import SimplenoteWriter
+from .playwright_writer import SimplenoteWriter, write_to_note
 from .session_file_handler import SessionFileHandler
+
+async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None) -> None:
+    """
+    Handle the session add command
+    
+    Args:
+        file_path: Path to the file to add
+        heading: Optional heading to add before the file content
+        cdp_url: Optional CDP URL for browser connection
+    """
+    # Get CDP URL from config if not provided
+    if not cdp_url:
+        from .simex import get_cdp_url
+        cdp_url = get_cdp_url()
+        
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Start a session first with 'simexp session start'")
+        return
+        
+    file_path = str(Path(file_path).resolve())
+    if not Path(file_path).exists():
+        print(f"❌ File not found: {file_path}")
+        return
+        
+    try:
+        # First find the session note
+        if not await search_and_select_note(session['session_id']):
+            print("❌ Could not find session note")
+            return
+            
+        handler = SessionFileHandler()
+        content = handler.read_file(file_path)
+        formatted_content = handler.format_content(file_path, content, heading)
+        
+        # Now write the content using the active browser context
+        writer = SimplenoteWriter(cdp_url=cdp_url)
+        await writer.append_content(formatted_content)
+        
+        print(f"✅ Added file: {Path(file_path).name} to session")
+        
+    except Exception as e:
+        print(f"❌ Error adding file: {e}")
 
 
 class SessionState:
@@ -326,6 +369,27 @@ if __name__ == "__main__":
         print("  Clear session:  python session_manager.py clear")
         print("  Add file:       python session_manager.py add <file_path> [--heading <text>]")
         sys.exit(1)
+
+    command = sys.argv[1]
+
+    if command == "add":
+        if len(sys.argv) < 3:
+            print("Error: Missing file path")
+            print("Usage: python session_manager.py add <file_path> [--heading <text>]")
+            sys.exit(1)
+            
+        file_path = sys.argv[2]
+        heading = None
+        
+        # Check for heading argument
+        if "--heading" in sys.argv:
+            heading_index = sys.argv.index("--heading")
+            if heading_index + 1 < len(sys.argv):
+                heading = sys.argv[heading_index + 1]
+                
+        # Run the add command
+        asyncio.run(handle_session_add(file_path, heading))
+        sys.exit(0)
 
     command = sys.argv[1]
 
