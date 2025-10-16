@@ -1,31 +1,62 @@
 import re
 import sys
+from packaging.version import Version
 
-def bump_version(file_path, new_version):
+def get_current_version(file_path):
     with open(file_path, 'r') as file:
         content = file.read()
+        match = re.search(r'version\s*=\s*["']([^"']*)["']', content)
+        if match:
+            return match.group(1)
+    return None
 
-    content = re.sub(r'version\s*=\s*[\'"]([^\'"]*)[\'"]', f'version = "{new_version}"', content)
-    
-    with open(file_path, 'w') as file:
-        file.write(content)
+def bump_version_file(file_path, new_version):
+    try:
+        with open(file_path, 'r') as file:
+            content = file.read()
+        
+        content = re.sub(r'version\s*=\s*["']([^"']*)["']', f'version = "{new_version}"', content)
+        
+        with open(file_path, 'w') as file:
+            file.write(content)
+        return True
+    except FileNotFoundError:
+        return False
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python bump.py <new_version>")
+    if len(sys.argv) != 2 or sys.argv[1] not in ['patch', 'minor', 'major']:
+        print("Usage: python bump.py <patch|minor|major>")
         sys.exit(1)
 
-    new_version = sys.argv[1]
+    bump_type = sys.argv[1]
+
+    # Get current version from setup.py as the source of truth
+    current_version_str = get_current_version('setup.py')
+    if not current_version_str:
+        print("Error: Could not find version in setup.py")
+        sys.exit(1)
+
+    current_version = Version(current_version_str)
+    major, minor, patch = current_version.major, current_version.minor, current_version.micro
+
+    if bump_type == 'major':
+        new_version = f'{major + 1}.0.0'
+    elif bump_type == 'minor':
+        new_version = f'{major}.{minor + 1}.0'
+    elif bump_type == 'patch':
+        new_version = f'{major}.{minor}.{patch + 1}'
 
     files_to_update = [
         'setup.py',
         'pyproject.toml'
     ]
 
+    updated_files = []
     for file_path in files_to_update:
-        try:
-            bump_version(file_path, new_version)
-        except Exception as e:
-            pass
+        if bump_version_file(file_path, new_version):
+            updated_files.append(file_path)
 
-    print(f"Version bumped to {new_version} in {', '.join(files_to_update)}")
+    if updated_files:
+        print(f"Version bumped to {new_version} in {', '.join(updated_files)}")
+    else:
+        print("No files were updated.")
