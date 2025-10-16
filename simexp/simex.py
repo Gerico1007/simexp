@@ -334,7 +334,12 @@ def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None
     # Resolve CDP URL using priority chain (Issue #11)
     resolved_cdp = get_cdp_url(cdp_url)
 
+    current_dir = os.getcwd()
+    session_dir = os.path.join(current_dir, '.simexp')
+
     print(f"♠️🌿🎸🧵 Starting New Session")
+    print(f"📁 Session directory: {session_dir}/")
+    print()
 
     session_data = asyncio.run(create_session_note(
         ai_assistant=ai_assistant,
@@ -343,8 +348,11 @@ def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None
     ))
 
     print(f"\n✅ Session started successfully!")
+    print(f"📁 Session file: {session_dir}/session.json")
     print(f"🔮 Session ID: {session_data['session_id']}")
     print(f"🔑 Search Key: {session_data['search_key']}")
+    print()
+    print(f"💡 This session is active for: {current_dir}")
     print(f"💡 Tip: Use 'simexp session write' to add content to your session note")
 
 
@@ -609,6 +617,7 @@ def session_url_command():
 def session_status_command():
     """Show current session status"""
     import sys
+    from .session_manager import get_session_directory
 
     # Get active session
     session = get_active_session()
@@ -617,19 +626,99 @@ def session_status_command():
         print("💡 Run 'simexp session start' to create a new session")
         sys.exit(1)
 
+    session_dir = session.get('_session_dir', get_session_directory())
+    current_dir = os.getcwd()
+
     print(f"♠️🌿🎸🧵 Active Session Status")
+    print()
+    print(f"📁 Session file: {session_dir}/session.json" if session_dir else "📁 Session file: Unknown")
     print(f"🔮 Session ID: {session['session_id']}")
     print(f"🔑 Search Key: {session['search_key']}")
     print(f"🤝 AI Assistant: {session['ai_assistant']}")
     if session.get('issue_number'):
         print(f"🎯 Issue: #{session['issue_number']}")
     print(f"📅 Created: {session['created_at']}")
+    print()
+    print(f"📍 Current directory: {current_dir}")
+    print(f"💡 Run 'simexp session info' for more details")
 
 
 def session_clear_command():
     """Clear the current session"""
     clear_active_session()
     print("✅ Session cleared")
+
+
+def session_list_command():
+    """List all sessions across directory tree"""
+    from .session_manager import list_all_sessions
+
+    sessions = list_all_sessions()
+
+    if not sessions:
+        print("❌ No sessions found")
+        print("💡 Run 'simexp session start' to create a new session")
+        return
+
+    print(f"♠️🌿🎸🧵 SimExp Sessions")
+    print()
+
+    for session in sessions:
+        session_dir = session.get('_session_dir', 'Unknown')
+        is_active = session.get('_is_active', False)
+
+        print(f"📁 {session_dir}/session.json")
+        print(f"   🔮 Session: {session['session_id'][:16]}...")
+        print(f"   🤝 AI: {session.get('ai_assistant', 'unknown')}")
+        if session.get('issue_number'):
+            print(f"   🎯 Issue: #{session['issue_number']}")
+        print(f"   📅 Created: {session.get('created_at', 'unknown')}")
+        if is_active:
+            print(f"   ⭐ ACTIVE (current directory)")
+        print()
+
+    print(f"💡 {len(sessions)} session(s) found")
+    print(f"💡 Session lookup: current dir → parent dirs → home dir")
+
+
+def session_info_command():
+    """Show detailed info about current session and directory context"""
+    import sys
+    from .session_manager import get_session_directory
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session")
+        print("💡 Run 'simexp session start' to create a new session")
+        print()
+        print("📁 Sessions are directory-based:")
+        print("   SimExp looks for .simexp/session.json in:")
+        print("   1. Current directory")
+        print("   2. Parent directories (walking up)")
+        print("   3. Home directory")
+        sys.exit(1)
+
+    session_dir = session.get('_session_dir', get_session_directory())
+    current_dir = os.getcwd()
+
+    print(f"♠️🌿🎸🧵 Current Session Info")
+    print()
+    print(f"📁 Session Directory: {session_dir}/")
+    print(f"🔮 Session ID: {session['session_id']}")
+    print(f"🔑 Search Key: {session.get('search_key', session['session_id'])}")
+    print(f"🤝 AI Assistant: {session.get('ai_assistant', 'unknown')}")
+    if session.get('issue_number'):
+        print(f"🎯 Issue: #{session['issue_number']}")
+    print(f"📅 Created: {session.get('created_at', 'unknown')}")
+    print()
+    print(f"📍 Current Directory: {current_dir}")
+    print()
+    print(f"💡 This session is active because you are in:")
+    if session_dir:
+        parent_dir = os.path.dirname(session_dir)
+        print(f"   {parent_dir}")
+    print()
+    print(f"💡 To see all sessions: simexp session list")
 
 
 def session_publish_command(cdp_url=None):
@@ -944,12 +1033,16 @@ def main():
                 print("Usage: simexp session <subcommand>")
                 print("\nSession Management:")
                 print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
-                print("  write <message>                              - Write to session note")
-                print("  read                                         - Read session note")
-                print("  open                                         - Open session note in browser")
-                print("  url                                          - Print session note URL")
+                print("  list                                         - List all sessions (directory tree)")
+                print("  info                                         - Show current session & directory context")
                 print("  status                                       - Show session status")
                 print("  clear                                        - Clear active session")
+                print("\nSession Content:")
+                print("  write <message>                              - Write to session note")
+                print("  read                                         - Read session note")
+                print("  add <file> [--heading <text>]                - Add file to session note")
+                print("  open                                         - Open session note in browser")
+                print("  url                                          - Print session note URL")
                 print("\nSharing & Publishing (Issue #6):")
                 print("  share <glyph|alias|group|email>              - Share with collaborator(s)")
                 print("  publish                                      - Publish note (get public URL)")
@@ -1012,7 +1105,13 @@ def main():
 
             elif subcommand == 'clear':
                 session_clear_command()
-                
+
+            elif subcommand == 'list':
+                session_list_command()
+
+            elif subcommand == 'info':
+                session_info_command()
+
             elif subcommand == 'add':
                 import argparse
                 parser = argparse.ArgumentParser(
@@ -1122,13 +1221,15 @@ def main():
             print("\nSession Commands:")
             print("  simexp session start [--ai <assistant>] [--issue <number>]")
             print("                               - Start new session with Simplenote note")
+            print("  simexp session list          - List all sessions across directory tree")
+            print("  simexp session info          - Show current session & directory context")
+            print("  simexp session status        - Show current session info")
+            print("  simexp session clear         - Clear active session")
             print("  simexp session write <msg>   - Write to current session's note")
             print("  simexp session add <file>    - Add file content to session note")
             print("  simexp session read          - Read current session's note")
             print("  simexp session open          - Open session note in browser")
             print("  simexp session url           - Print session note URL")
-            print("  simexp session status        - Show current session info")
-            print("  simexp session clear         - Clear active session")
             print("\nSharing Commands (Issue #6):")
             print("  simexp session share <glyph|alias|group|email>  - Share with collaborator(s)")
             print("  simexp session publish       - Publish note (get public URL)")

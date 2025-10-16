@@ -276,11 +276,102 @@ def get_active_session() -> Optional[Dict]:
     """
     Get the currently active session
 
+    Searches for session.json in this order:
+    1. Current directory: ./.simexp/session.json
+    2. Parent directories: ../.simexp/session.json (walking up)
+    3. Home directory: ~/.simexp/session.json
+
     Returns:
         Session data dictionary or None if no active session
     """
-    state = SessionState()
-    return state.load_session()
+    # Start from current directory
+    current_dir = os.getcwd()
+
+    # Walk up directory tree looking for .simexp/session.json
+    check_dir = current_dir
+    while True:
+        state = SessionState(workspace_dir=check_dir)
+        session = state.load_session()
+        if session:
+            # Add directory info to session data
+            session['_session_dir'] = state.state_dir
+            return session
+
+        # Move to parent directory
+        parent = os.path.dirname(check_dir)
+        if parent == check_dir:  # Reached root
+            break
+        check_dir = parent
+
+    # Finally check home directory
+    home_dir = os.path.expanduser('~')
+    state = SessionState(workspace_dir=home_dir)
+    session = state.load_session()
+    if session:
+        session['_session_dir'] = state.state_dir
+    return session
+
+
+def get_session_directory() -> Optional[str]:
+    """
+    Get the directory containing the active session
+
+    Returns:
+        Path to .simexp directory containing session.json, or None
+    """
+    session = get_active_session()
+    if session and '_session_dir' in session:
+        return session['_session_dir']
+    return None
+
+
+def list_all_sessions() -> List[Dict]:
+    """
+    Find all session.json files in directory tree and home directory
+
+    Searches from current directory upward, then home directory.
+
+    Returns:
+        List of dicts with session data and directory info
+    """
+    sessions = []
+    seen_dirs = set()
+
+    # Start from current directory and walk up
+    current_dir = os.getcwd()
+    check_dir = current_dir
+
+    while True:
+        state = SessionState(workspace_dir=check_dir)
+        if os.path.exists(state.state_file) and check_dir not in seen_dirs:
+            session = state.load_session()
+            if session:
+                session['_session_dir'] = state.state_dir
+                session['_is_active'] = (check_dir == current_dir)
+                sessions.append(session)
+                seen_dirs.add(check_dir)
+
+        # Move to parent
+        parent = os.path.dirname(check_dir)
+        if parent == check_dir:  # Reached root
+            break
+        check_dir = parent
+
+    # Check home directory if not already found
+    home_dir = os.path.expanduser('~')
+    if home_dir not in seen_dirs:
+        state = SessionState(workspace_dir=home_dir)
+        if os.path.exists(state.state_file):
+            session = state.load_session()
+            if session:
+                session['_session_dir'] = state.state_dir
+                session['_is_active'] = (home_dir == current_dir)
+                sessions.append(session)
+
+    # Sort by creation date (newest first)
+    sessions.sort(key=lambda s: s.get('created_at', ''), reverse=True)
+
+    return sessions
 
 
 def clear_active_session() -> None:
