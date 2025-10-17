@@ -20,7 +20,7 @@ from .session_file_handler import SessionFileHandler
 async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None) -> None:
     """
     Handle the session add command
-    
+
     Args:
         file_path: Path to the file to add
         heading: Optional heading to add before the file content
@@ -30,35 +30,53 @@ async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_
     if not cdp_url:
         from .simex import get_cdp_url
         cdp_url = get_cdp_url()
-        
+
     session = get_active_session()
     if not session:
         print("❌ No active session. Start a session first with 'simexp session start'")
         return
-        
+
     file_path = str(Path(file_path).resolve())
     if not Path(file_path).exists():
         print(f"❌ File not found: {file_path}")
         return
-        
+
     try:
-        # First find the session note
-        if not await search_and_select_note(session['session_id']):
-            print("❌ Could not find session note")
-            return
-            
-        handler = SessionFileHandler()
-        content = handler.read_file(file_path)
-        formatted_content = handler.format_content(file_path, content, heading)
-        
-        # Now write the content using the active browser context
-        writer = SimplenoteWriter(cdp_url=cdp_url)
-        await writer.append_content(formatted_content)
-        
-        print(f"✅ Added file: {Path(file_path).name} to session")
-        
+        # ⚡ FIX Issue #24: Create writer context to get page object for search_and_select_note
+        async with SimplenoteWriter(cdp_url=cdp_url) as writer:
+            # Navigate to Simplenote
+            print(f"🌐 Adding File to Session Note")
+            print(f"🔮 Session: {session['session_id']}")
+            print(f"📄 File: {Path(file_path).name}")
+
+            await writer.page.goto('https://app.simplenote.com/')
+            await writer.page.wait_for_load_state('networkidle')
+
+            # First find and select the session note (now passing the page!)
+            if not await search_and_select_note(session['session_id'], writer.page):
+                print("❌ Could not find session note")
+                return
+
+            # Read and format the file content
+            handler = SessionFileHandler()
+            content = handler.read_file(file_path)
+            formatted_content = handler.format_content(file_path, content, heading)
+
+            # Print formatted content info
+            print(f"📄 File content formatted ({len(formatted_content)} chars)")
+            print(f"✍️ Writing to Session Note")
+            print(f"🔮 Session: {session['session_id']}")
+            print(f"📝 Content length: {len(formatted_content)} chars")
+
+            # Write the content to the selected note
+            await writer.append_content(formatted_content)
+
+            print(f"✅ Added file: {Path(file_path).name} to session")
+
     except Exception as e:
         print(f"❌ Error adding file: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 class SessionState:
