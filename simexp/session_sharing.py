@@ -122,7 +122,7 @@ async def publish_note(
                         await publish_element.click()
                         if debug:
                             print(f"⏳ Waiting for publish to complete...")
-                        await asyncio.sleep(2.5)
+                        await asyncio.sleep(3)  # Wait longer for UI to update
                         publish_clicked = True
                         break
                 except:
@@ -132,9 +132,10 @@ async def publish_note(
                 print("❌ Could not click 'Publish' checkbox")
                 return None
 
-        # Look for "Copy Link" button within the public link panel
-        # Structure: <div class="note-actions-panel note-actions-public-link">
-        #              <button type="button" class="button button-borderless">Copy Link</button>
+        # Strategy 1: Look for "Copy Link" button within the public link panel
+        # Wait a bit longer for panel to appear
+        await asyncio.sleep(1)
+
         copy_link_selectors = [
             '.note-actions-public-link button:has-text("Copy Link")',
             '.note-actions-public-link button.button-borderless',
@@ -156,6 +157,8 @@ async def publish_note(
                     await asyncio.sleep(1.5)  # Wait for clipboard
                     break
             except:
+                if debug:
+                    pass  # Silently try next selector
                 continue
 
         # Try to read URL from clipboard (Simplenote auto-copies it)
@@ -190,7 +193,7 @@ async def publish_note(
             if debug:
                 print(f"⚠️  Could not read clipboard: {e}")
 
-        # Fallback: Try to extract from DOM
+        # Fallback Strategy 2: Try to extract URL directly from DOM
         if not public_url:
             url_selectors = [
                 'input[readonly][value*="simplenote.com/p/"]',
@@ -198,7 +201,10 @@ async def publish_note(
                 'a[href*="simplenote.com/p/"]',
                 '.public-url',
                 '[data-public-url]',
-                'input[type="text"][value*="/p/"]'
+                'input[type="text"][value*="/p/"]',
+                'input[placeholder*="public"]',
+                '.note-actions-public-link input',
+                '.note-actions-public-link a',
             ]
 
             for selector in url_selectors:
@@ -220,9 +226,51 @@ async def publish_note(
                 except:
                     continue
 
+        # Fallback Strategy 3: Try JavaScript to access app state
+        if not public_url:
+            try:
+                app_url = await page.evaluate("""
+                    () => {
+                        // Try to find URL in app state or window object
+                        try {
+                            if (window.__INITIAL_STATE__ && window.__INITIAL_STATE__.publicUrl) {
+                                return window.__INITIAL_STATE__.publicUrl;
+                            }
+                            if (window.app && window.app.state && window.app.state.publicUrl) {
+                                return window.app.state.publicUrl;
+                            }
+                        } catch (e) {}
+
+                        // Try to find any element with URL pattern
+                        const inputs = document.querySelectorAll('input');
+                        for (let input of inputs) {
+                            if (input.value && input.value.includes('/p/')) {
+                                return input.value;
+                            }
+                        }
+
+                        const links = document.querySelectorAll('a');
+                        for (let link of links) {
+                            if (link.href && link.href.includes('/p/')) {
+                                return link.href;
+                            }
+                        }
+
+                        return null;
+                    }
+                """)
+
+                if app_url and '/p/' in app_url:
+                    public_url = app_url.strip()
+                    if debug:
+                        print(f"✅ Extracted public URL via JavaScript: {public_url}")
+            except:
+                pass
+
         if not public_url:
             if debug:
                 print("⚠️ Published, but could not extract URL automatically")
+                print("💡 Simplenote may be using a different UI format")
                 print("💡 Check clipboard or Simplenote UI for the public URL")
 
         return public_url
