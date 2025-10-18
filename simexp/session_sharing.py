@@ -31,15 +31,16 @@ async def publish_note(
     session_id: str,
     page,
     debug: bool = True
-) -> Optional[str]:
+) -> Optional[Dict]:
     """
-    Publish a Simplenote note to make it publicly accessible
+    Publish a Simplenote note to make it publicly accessible and capture both URLs
 
     This function:
     1. Assumes note is already selected/focused
     2. Looks for publish/share button
     3. Clicks to publish
-    4. Extracts and returns public URL
+    4. Captures BOTH public and internal URLs
+    5. Returns dict with both URLs
 
     Args:
         session_id: Session UUID
@@ -47,7 +48,11 @@ async def publish_note(
         debug: Enable debug logging
 
     Returns:
-        Public URL if successful, None if failed
+        Dict with 'public_url' and 'internal_url' if successful, None if failed
+        Example: {
+            'public_url': 'https://app.simplenote.com/p/CfJ36S',
+            'internal_url': 'simplenote://note/dfa08c12-9276-4e94-a240-d894f0b2e082'
+        }
     """
     try:
         if debug:
@@ -169,37 +174,85 @@ async def publish_note(
                     pass  # Silently try next selector
                 continue
 
-        # Try to read URL from clipboard (Simplenote auto-copies it)
-        # Simplenote uses simp.ly URL shortener, e.g., http://simp.ly/p/yJ5sNZ
-        # We'll transform it to https://app.simplenote.com/p/yJ5sNZ
+        # Try to read BOTH URLs from clipboard (Simplenote copies them)
+        # Capture: public URL and internal URL
         public_url = None
+        internal_url = None
+
         try:
             import pyperclip
             clipboard_content = pyperclip.paste()
-            # Check for simp.ly OR simplenote.com URLs with /p/ pattern
-            if clipboard_content and '/p/' in clipboard_content:
-                url = clipboard_content.strip()
 
-                # Transform simp.ly to full simplenote.com URL
-                if 'simp.ly' in url:
-                    # Extract note ID from simp.ly URL
-                    # Example: http://simp.ly/p/yJ5sNZ -> yJ5sNZ
-                    import re
-                    match = re.search(r'/p/([a-zA-Z0-9]+)', url)
-                    if match:
-                        note_id = match.group(1)
-                        public_url = f"https://app.simplenote.com/p/{note_id}"
+            # Check if this is public URL (has /p/) or internal URL (simplenote://)
+            if clipboard_content:
+                clipboard_content = clipboard_content.strip()
+
+                if 'simplenote://' in clipboard_content:
+                    internal_url = clipboard_content
+                    if debug:
+                        print(f"✅ Got internal URL from clipboard: {internal_url}")
+                elif '/p/' in clipboard_content:
+                    url = clipboard_content
+
+                    # Transform simp.ly to full simplenote.com URL if needed
+                    if 'simp.ly' in url:
+                        # Extract note ID from simp.ly URL
+                        # Example: http://simp.ly/p/yJ5sNZ -> yJ5sNZ
+                        import re
+                        match = re.search(r'/p/([a-zA-Z0-9]+)', url)
+                        if match:
+                            note_id = match.group(1)
+                            public_url = f"https://app.simplenote.com/p/{note_id}"
+                            if debug:
+                                print(f"✅ Got public URL from clipboard: {public_url}")
+                                print(f"   (Transformed from: {url})")
+                    elif 'simplenote.com' in url:
+                        # Already in correct format
+                        public_url = url
                         if debug:
                             print(f"✅ Got public URL from clipboard: {public_url}")
-                            print(f"   (Transformed from: {url})")
-                elif 'simplenote.com' in url:
-                    # Already in correct format
-                    public_url = url
-                    if debug:
-                        print(f"✅ Got public URL from clipboard: {public_url}")
         except Exception as e:
             if debug:
                 print(f"⚠️  Could not read clipboard: {e}")
+
+        # If we got public URL, now try to get internal URL (click "Copy Internal Link")
+        if public_url and not internal_url:
+            try:
+                await asyncio.sleep(0.5)
+
+                internal_link_selectors = [
+                    'button:has-text("Copy Internal Link")',
+                    '.note-actions-item button:has-text("Copy Internal Link")',
+                ]
+
+                internal_link_button = None
+                for selector in internal_link_selectors:
+                    try:
+                        internal_link_button = await page.wait_for_selector(selector, timeout=2000)
+                        if internal_link_button:
+                            if debug:
+                                print(f"✅ Found copy internal link button: {selector}")
+                            await internal_link_button.click()
+                            if debug:
+                                print(f"⏳ Waiting for internal link copy...")
+                            await asyncio.sleep(1.5)
+                            break
+                    except:
+                        pass
+
+                # Try to read internal URL from clipboard
+                if internal_link_button:
+                    try:
+                        import pyperclip
+                        clipboard_content = pyperclip.paste()
+                        if clipboard_content and 'simplenote://' in clipboard_content:
+                            internal_url = clipboard_content.strip()
+                            if debug:
+                                print(f"✅ Got internal URL from clipboard: {internal_url}")
+                    except:
+                        pass
+            except:
+                pass
 
         # Fallback Strategy 2: Try to extract URL directly from DOM
         if not public_url:
@@ -277,11 +330,17 @@ async def publish_note(
 
         if not public_url:
             if debug:
-                print("⚠️ Published, but could not extract URL automatically")
+                print("⚠️ Published, but could not extract public URL automatically")
                 print("💡 Simplenote may be using a different UI format")
                 print("💡 Check clipboard or Simplenote UI for the public URL")
 
-        return public_url
+        # Return dict with both URLs (or None if neither found)
+        if public_url or internal_url:
+            return {
+                'public_url': public_url,
+                'internal_url': internal_url
+            }
+        return None
 
     except Exception as e:
         print(f"❌ Error publishing note: {e}")

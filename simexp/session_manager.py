@@ -143,7 +143,9 @@ def generate_yaml_header(
     ai_assistant: str = 'claude',
     agents: List[str] = None,
     issue_number: Optional[int] = None,
-    pr_number: Optional[int] = None
+    pr_number: Optional[int] = None,
+    public_url: Optional[str] = None,
+    internal_url: Optional[str] = None
 ) -> str:
     """
     Generate YAML metadata header for session note
@@ -154,6 +156,8 @@ def generate_yaml_header(
         agents: List of agent names (defaults to Assembly agents)
         issue_number: GitHub issue number being worked on
         pr_number: GitHub PR number (if applicable)
+        public_url: Public Simplenote URL for sharing
+        internal_url: Internal Simplenote URL
 
     Returns:
         YAML-formatted metadata header as string
@@ -169,6 +173,12 @@ def generate_yaml_header(
         'pr_number': pr_number,
         'created_at': datetime.now().isoformat()
     }
+
+    # Add URLs if provided
+    if public_url:
+        metadata['public_url'] = public_url
+    if internal_url:
+        metadata['internal_url'] = internal_url
 
     yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
     return f"---\n{yaml_content}---\n\n"
@@ -291,6 +301,7 @@ async def create_session_note(
         print(f"🎯 Issue: #{issue_number}")
 
     public_url = None
+    internal_url = None
     simplenote_note_id = None
 
     # Connect to Simplenote and create new note
@@ -335,7 +346,7 @@ async def create_session_note(
         await asyncio.sleep(2)
         await writer.page.wait_for_load_state('networkidle')
 
-        # Generate YAML metadata header
+        # Generate YAML metadata header (without URLs initially)
         yaml_header = generate_yaml_header(
             session_id=session_id,
             ai_assistant=ai_assistant,
@@ -357,22 +368,50 @@ async def create_session_note(
 
         print(f"✅ Metadata written to new note")
 
-        # 🌐 NEW: Auto-publish the session note
+        # 🌐 NEW: Auto-publish the session note and capture BOTH URLs
         print(f"🌐 Publishing session note...")
         try:
             # Lazy import to avoid circular dependency
             from .session_sharing import publish_note
-            public_url = await publish_note(session_id, writer.page, debug=debug)
+            publish_result = await publish_note(session_id, writer.page, debug=debug)
 
-            if public_url:
-                print(f"✅ Public URL: {public_url}")
+            if publish_result:
+                public_url = publish_result.get('public_url')
+                internal_url = publish_result.get('internal_url')
 
-                # Extract note ID from public URL if available
-                # Pattern: https://app.simplenote.com/p/yJ5sNZ
-                match = re.search(r'/p/([a-zA-Z0-9]+)', public_url)
-                if match:
-                    simplenote_note_id = match.group(1)
-                    print(f"🔑 Simplenote Note ID: {simplenote_note_id}")
+                if public_url:
+                    print(f"✅ Public URL: {public_url}")
+
+                    # Extract note ID from public URL if available
+                    # Pattern: https://app.simplenote.com/p/yJ5sNZ
+                    match = re.search(r'/p/([a-zA-Z0-9]+)', public_url)
+                    if match:
+                        simplenote_note_id = match.group(1)
+                        print(f"🔑 Simplenote Note ID: {simplenote_note_id}")
+
+                if internal_url:
+                    print(f"✅ Internal URL: {internal_url}")
+
+                # Update note metadata with the URLs we captured
+                if public_url or internal_url:
+                    print(f"📝 Updating note metadata with URLs...")
+                    yaml_header_with_urls = generate_yaml_header(
+                        session_id=session_id,
+                        ai_assistant=ai_assistant,
+                        issue_number=issue_number,
+                        public_url=public_url,
+                        internal_url=internal_url
+                    )
+
+                    # Select all existing text and replace with updated metadata
+                    editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
+                    await editor.click()
+                    await asyncio.sleep(0.2)
+                    await writer.page.keyboard.press('Control+A')
+                    await asyncio.sleep(0.2)
+                    await writer.page.keyboard.type(yaml_header_with_urls, delay=0)
+                    await asyncio.sleep(1)  # Wait for autosave
+                    print(f"✅ Note metadata updated with URLs")
             else:
                 print(f"⚠️  Note created but not published (check manually in Simplenote)")
 
@@ -390,7 +429,7 @@ async def create_session_note(
                 print(f"⚠️  Could not extract note ID: {e}")
 
     # Save session state with new fields
-    # ⚡ ENHANCED: Include public_url and simplenote_note_id
+    # ⚡ ENHANCED: Include both public_url and internal_url
     session_data = {
         'session_id': session_id,
         'search_key': session_id,  # Use session_id to find the note via search
@@ -398,8 +437,9 @@ async def create_session_note(
         'issue_number': issue_number,
         'created_at': datetime.now().isoformat(),
         'public_url': public_url,  # NEW: Public URL for sharing
+        'internal_url': internal_url,  # NEW: Internal Simplenote URL
         'simplenote_note_id': simplenote_note_id,  # NEW: Internal note ID
-        'published_at': datetime.now().isoformat() if public_url else None  # NEW: Publication timestamp
+        'published_at': datetime.now().isoformat() if (public_url or internal_url) else None  # NEW: Publication timestamp
     }
 
     state = SessionState()
@@ -408,7 +448,9 @@ async def create_session_note(
     print(f"🔑 Search key: {session_id}")
 
     if public_url:
-        print(f"🌐 Share URL: {public_url}")
+        print(f"🌐 Public URL: {public_url}")
+    if internal_url:
+        print(f"🔗 Internal URL: {internal_url}")
 
     print(f"✅ Session created and published!")
 
