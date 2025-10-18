@@ -17,7 +17,6 @@ import yaml
 
 from .playwright_writer import SimplenoteWriter, write_to_note
 from .session_file_handler import SessionFileHandler
-from .session_sharing import publish_note
 
 async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None) -> None:
     """
@@ -361,6 +360,8 @@ async def create_session_note(
         # 🌐 NEW: Auto-publish the session note
         print(f"🌐 Publishing session note...")
         try:
+            # Lazy import to avoid circular dependency
+            from .session_sharing import publish_note
             public_url = await publish_note(session_id, writer.page, debug=debug)
 
             if public_url:

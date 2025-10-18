@@ -354,19 +354,35 @@ class SimplenoteWriter:
         except ImportError:
             raise Exception("pyperclip not installed - required for clipboard paste. Install with: pip install pyperclip")
 
+        print(f"📋 paste_content(): Pasting {len(content)} characters via clipboard")
         logger.info(f"📋 Pasting {len(content)} characters via clipboard (fast mode)")
 
         # Copy to clipboard
-        pyperclip.copy(content)
-        logger.info(f"✅ Content copied to clipboard")
+        try:
+            pyperclip.copy(content)
+            print("✅ paste_content(): Content copied to clipboard")
+            logger.info(f"✅ Content copied to clipboard")
+        except Exception as e:
+            raise Exception(f"Failed to copy to clipboard: {e}")
 
         # Find the editor element
-        selector = await self.find_editor()
-        element = await self.page.query_selector(selector)
+        try:
+            print("🔍 paste_content(): Looking for editor...")
+            selector = await self.find_editor()
+            print(f"✅ paste_content(): Found editor: {selector}")
+            element = await self.page.query_selector(selector)
+            if not element:
+                raise Exception(f"Editor element not found with selector: {selector}")
+        except Exception as e:
+            raise Exception(f"Failed to find editor: {e}")
 
         # Click editor to focus
-        await element.click()
-        await asyncio.sleep(0.5)
+        try:
+            await element.click()
+            await asyncio.sleep(0.5)
+            print("✅ paste_content(): Editor focused")
+        except Exception as e:
+            raise Exception(f"Failed to focus editor: {e}")
 
         # Platform-specific keyboard shortcuts
         is_mac = platform.system() == 'Darwin'
@@ -374,29 +390,46 @@ class SimplenoteWriter:
         if mode == 'append':
             # Jump to end of note
             end_key = 'Meta+End' if is_mac else 'Control+End'
-            await self.page.keyboard.press(end_key)
-            await asyncio.sleep(0.2)
-            logger.info("🔚 Jumped to end of note")
+            try:
+                await self.page.keyboard.press(end_key)
+                await asyncio.sleep(0.2)
+                print("🔚 paste_content(): Jumped to end of note")
+                logger.info("🔚 Jumped to end of note")
+            except Exception as e:
+                raise Exception(f"Failed to jump to end: {e}")
         else:
             # Select all for replace mode
             select_key = 'Meta+A' if is_mac else 'Control+A'
-            await self.page.keyboard.press(select_key)
-            await asyncio.sleep(0.2)
-            logger.info("📝 Selected all content")
+            try:
+                await self.page.keyboard.press(select_key)
+                await asyncio.sleep(0.2)
+                print("📝 paste_content(): Selected all content")
+                logger.info("📝 Selected all content")
+            except Exception as e:
+                raise Exception(f"Failed to select all: {e}")
 
         # Paste content
-        paste_key = 'Meta+V' if is_mac else 'Control+V'
-        await self.page.keyboard.press(paste_key)
-        await asyncio.sleep(1)  # Wait for paste operation to complete
-
-        logger.info(f"✅ Content pasted successfully")
+        try:
+            paste_key = 'Meta+V' if is_mac else 'Control+V'
+            print(f"🔗 paste_content(): Sending paste shortcut ({paste_key})...")
+            await self.page.keyboard.press(paste_key)
+            await asyncio.sleep(1)  # Wait for paste operation to complete
+            print("✅ paste_content(): Content pasted successfully")
+            logger.info(f"✅ Content pasted successfully")
+        except Exception as e:
+            raise Exception(f"Failed to paste: {e}")
 
         # Clear clipboard for security
-        pyperclip.copy('')
-        logger.info("🧹 Clipboard cleared (security)")
+        try:
+            pyperclip.copy('')
+            print("🧹 paste_content(): Clipboard cleared (security)")
+            logger.info("🧹 Clipboard cleared (security)")
+        except Exception as e:
+            raise Exception(f"Failed to clear clipboard: {e}")
 
         # Wait for autosave
         await asyncio.sleep(1)
+        print("⏸️ paste_content(): Waiting for autosave...")
 
     async def append_content(self, content: str) -> None:
         """
@@ -411,17 +444,32 @@ class SimplenoteWriter:
         Args:
             content: Content to append to the note
         """
+        import sys
+        print(f"📋 Attempting clipboard paste for {len(content)} chars...", file=sys.stderr)
+        sys.stderr.flush()
+
         try:
             await self.paste_content(content, mode='append')
+            print("✅ Clipboard paste succeeded!", file=sys.stderr)
+            sys.stderr.flush()
             logger.info("✅ Append completed via clipboard paste")
         except Exception as paste_error:
+            # VISIBLE ERROR - show user what went wrong (force to stderr)
+            print(f"⚠️ Clipboard paste failed: {type(paste_error).__name__}: {paste_error}", file=sys.stderr)
+            print("🔄 Falling back to character typing method...", file=sys.stderr)
+            sys.stderr.flush()
             logger.warning(f"⚠️ Clipboard paste failed: {paste_error}")
             logger.info("🔄 Falling back to character typing method...")
+
             # Fallback to the old typing method for reliability
             try:
                 await self.write_content(content, mode='append')
+                print("✅ Append completed via typing method (fallback)", file=sys.stderr)
+                sys.stderr.flush()
                 logger.info("✅ Append completed via fallback typing method")
             except Exception as fallback_error:
+                print(f"❌ Both paste and typing methods failed: {fallback_error}", file=sys.stderr)
+                sys.stderr.flush()
                 logger.error(f"❌ Both paste and typing methods failed: {fallback_error}")
                 raise Exception(f"Failed to append content: {fallback_error}")
 
