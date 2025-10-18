@@ -9,6 +9,7 @@ import os
 import json
 import uuid
 import asyncio
+import re
 from datetime import datetime
 from typing import Optional, Dict, List
 from pathlib import Path
@@ -16,6 +17,7 @@ import yaml
 
 from .playwright_writer import SimplenoteWriter, write_to_note
 from .session_file_handler import SessionFileHandler
+from .session_sharing import publish_note
 
 async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None) -> None:
     """
@@ -173,6 +175,85 @@ def generate_yaml_header(
     return f"---\n{yaml_content}---\n\n"
 
 
+async def extract_simplenote_note_id(page) -> Optional[str]:
+    """
+    Extract Simplenote's internal note ID from the DOM or URL
+
+    Attempts to find the note ID from multiple sources:
+    1. URL hash/query parameters
+    2. DOM attributes (data-note-id, etc.)
+    3. Window object (app state)
+
+    Args:
+        page: Playwright page object
+
+    Returns:
+        Note ID if found, None otherwise
+    """
+    try:
+        # Strategy 1: Check URL for note ID pattern
+        url = page.url
+        # Simplenote URLs often have format: /p/noteId or ?noteId=...
+        if '/p/' in url:
+            note_id = url.split('/p/')[-1].split('?')[0]
+            if note_id and len(note_id) > 0:
+                return note_id
+
+        # Strategy 2: Try to extract from window state via JavaScript
+        try:
+            app_state = await page.evaluate("""
+                () => {
+                    // Try to access Simplenote app state
+                    if (window.__INITIAL_STATE__) {
+                        return window.__INITIAL_STATE__;
+                    }
+                    if (window.app && window.app.state) {
+                        return window.app.state;
+                    }
+                    return null;
+                }
+            """)
+
+            if app_state:
+                # Look for note ID in various common patterns
+                if isinstance(app_state, dict):
+                    if 'noteId' in app_state:
+                        return app_state['noteId']
+                    if 'note' in app_state and 'id' in app_state['note']:
+                        return app_state['note']['id']
+                    if 'current' in app_state and 'id' in app_state['current']:
+                        return app_state['current']['id']
+        except:
+            pass
+
+        # Strategy 3: Try to extract from DOM data attributes
+        try:
+            note_element = await page.query_selector('[data-note-id]')
+            if note_element:
+                note_id = await note_element.get_attribute('data-note-id')
+                if note_id:
+                    return note_id
+        except:
+            pass
+
+        # Strategy 4: Look for note ID in public link (from publish action)
+        try:
+            # After publishing, check for note ID in the URL that was generated
+            # Pattern: https://app.simplenote.com/p/yJ5sNZ
+            url = page.url
+            match = re.search(r'/p/([a-zA-Z0-9]+)', url)
+            if match:
+                return match.group(1)
+        except:
+            pass
+
+        return None
+
+    except Exception as e:
+        print(f"⚠️  Error extracting note ID: {e}")
+        return None
+
+
 async def create_session_note(
     ai_assistant: str = 'claude',
     issue_number: Optional[int] = None,
@@ -187,7 +268,9 @@ async def create_session_note(
     1. Generates a unique session UUID
     2. Uses Playwright to create a new note in Simplenote
     3. Writes YAML metadata header to the note
-    4. Saves session state to .simexp/session.json
+    4. Auto-publishes the note and captures public URL
+    5. Extracts Simplenote's internal note ID
+    6. Saves session state to .simexp/session.json with all metadata
 
     Args:
         ai_assistant: AI assistant name (claude or gemini)
@@ -197,7 +280,7 @@ async def create_session_note(
         debug: Enable debug logging
 
     Returns:
-        Dictionary with session info (session_id, note_url, etc.)
+        Dictionary with session info (session_id, public_url, simplenote_note_id, etc.)
     """
     # Generate session ID
     session_id = str(uuid.uuid4())
@@ -207,6 +290,9 @@ async def create_session_note(
     print(f"🤝 AI Assistant: {ai_assistant}")
     if issue_number:
         print(f"🎯 Issue: #{issue_number}")
+
+    public_url = None
+    simplenote_note_id = None
 
     # Connect to Simplenote and create new note
     # ⚡ FIX: Direct metadata write to avoid navigation bug
@@ -272,20 +358,58 @@ async def create_session_note(
 
         print(f"✅ Metadata written to new note")
 
-    # Save session state
-    # ⚡ FIX: Use session_id as search key, not note_url
+        # 🌐 NEW: Auto-publish the session note
+        print(f"🌐 Publishing session note...")
+        try:
+            public_url = await publish_note(session_id, writer.page, debug=debug)
+
+            if public_url:
+                print(f"✅ Public URL: {public_url}")
+
+                # Extract note ID from public URL if available
+                # Pattern: https://app.simplenote.com/p/yJ5sNZ
+                match = re.search(r'/p/([a-zA-Z0-9]+)', public_url)
+                if match:
+                    simplenote_note_id = match.group(1)
+                    print(f"🔑 Simplenote Note ID: {simplenote_note_id}")
+            else:
+                print(f"⚠️  Note created but not published (check manually in Simplenote)")
+
+        except Exception as e:
+            print(f"⚠️  Error publishing note: {e}")
+            print(f"💡 Note created successfully but publishing failed")
+
+        # Additional attempt to extract note ID if not already found
+        if not simplenote_note_id:
+            try:
+                simplenote_note_id = await extract_simplenote_note_id(writer.page)
+                if simplenote_note_id:
+                    print(f"🔑 Extracted Simplenote Note ID: {simplenote_note_id}")
+            except Exception as e:
+                print(f"⚠️  Could not extract note ID: {e}")
+
+    # Save session state with new fields
+    # ⚡ ENHANCED: Include public_url and simplenote_note_id
     session_data = {
         'session_id': session_id,
         'search_key': session_id,  # Use session_id to find the note via search
         'ai_assistant': ai_assistant,
         'issue_number': issue_number,
-        'created_at': datetime.now().isoformat()
+        'created_at': datetime.now().isoformat(),
+        'public_url': public_url,  # NEW: Public URL for sharing
+        'simplenote_note_id': simplenote_note_id,  # NEW: Internal note ID
+        'published_at': datetime.now().isoformat() if public_url else None  # NEW: Publication timestamp
     }
 
     state = SessionState()
     state.save_session(session_data)
     print(f"💾 Session state saved to {state.state_file}")
     print(f"🔑 Search key: {session_id}")
+
+    if public_url:
+        print(f"🌐 Share URL: {public_url}")
+
+    print(f"✅ Session created and published!")
 
     return session_data
 
