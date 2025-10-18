@@ -403,15 +403,44 @@ async def create_session_note(
                         internal_url=internal_url
                     )
 
-                    # Select all existing text and replace with updated metadata
-                    editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
-                    await editor.click()
-                    await asyncio.sleep(0.2)
-                    await writer.page.keyboard.press('Control+A')
-                    await asyncio.sleep(0.2)
-                    await writer.page.keyboard.type(yaml_header_with_urls, delay=0)
-                    await asyncio.sleep(1)  # Wait for autosave
-                    print(f"✅ Note metadata updated with URLs")
+                    try:
+                        # ⚡ Search for the note again to properly focus on it
+                        # This ensures we're editing the right note after publishing
+                        print(f"🔍 Searching for note to update metadata...")
+                        note_found = await search_and_select_note(session_id, writer.page, debug=False)
+
+                        if note_found:
+                            print(f"✅ Note found and focused")
+                            await asyncio.sleep(1)
+
+                            # Navigate to end of note and append URLs
+                            editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
+                            await editor.click()
+                            await asyncio.sleep(0.2)
+
+                            # Go to end of document
+                            await writer.page.keyboard.press('Control+End')
+                            await asyncio.sleep(0.2)
+
+                            # Append URL fields to the end
+                            url_additions = ""
+                            if public_url:
+                                url_additions += f"public_url: {public_url}\n"
+                            if internal_url:
+                                url_additions += f"internal_url: {internal_url}\n"
+
+                            # Type directly (not paste)
+                            await writer.page.keyboard.type(url_additions, delay=0)
+                            await asyncio.sleep(1.5)  # Wait for autosave
+
+                            print(f"✅ Note metadata updated with URLs")
+                        else:
+                            print(f"⚠️  Could not find note to update metadata")
+                            print(f"💡 URLs are saved in session.json")
+
+                    except Exception as e:
+                        print(f"⚠️  Could not update metadata: {e}")
+                        print(f"💡 URLs are saved in session.json, check note manually")
             else:
                 print(f"⚠️  Note created but not published (check manually in Simplenote)")
 
