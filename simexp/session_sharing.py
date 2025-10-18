@@ -134,13 +134,18 @@ async def publish_note(
 
         # Strategy 1: Look for "Copy Link" button within the public link panel
         # Wait a bit longer for panel to appear
-        await asyncio.sleep(1)
+        await asyncio.sleep(1.5)
 
+        # Updated selectors based on actual Simplenote DOM structure:
+        # <div class="note-actions-item">
+        #   <button type="button" class="button button-borderless">Copy Link</button>
+        # </div>
         copy_link_selectors = [
-            '.note-actions-public-link button:has-text("Copy Link")',
-            '.note-actions-public-link button.button-borderless',
+            'button:has-text("Copy Link")',  # Direct match for button with "Copy Link" text
+            '.note-actions-item button.button-borderless',  # Parent is note-actions-item
             'button.button-borderless:has-text("Copy Link")',
-            'button:has-text("Copy Link")',
+            '.note-actions-public-link button:has-text("Copy Link")',
+            'button.button-borderless',  # Generic fallback
         ]
 
         copy_link_button = None
@@ -148,14 +153,17 @@ async def publish_note(
             try:
                 copy_link_button = await page.wait_for_selector(selector, timeout=3000)
                 if copy_link_button:
-                    if debug:
-                        print(f"✅ Found copy link button: {selector}")
-                    # Click it to copy URL to clipboard
-                    await copy_link_button.click()
-                    if debug:
-                        print(f"⏳ Waiting for clipboard copy...")
-                    await asyncio.sleep(1.5)  # Wait for clipboard
-                    break
+                    # Verify this is the "Copy Link" button by checking text
+                    button_text = await copy_link_button.text_content()
+                    if button_text and "Copy Link" in button_text and "Internal" not in button_text:
+                        if debug:
+                            print(f"✅ Found copy link button: {selector}")
+                        # Click it to copy URL to clipboard
+                        await copy_link_button.click()
+                        if debug:
+                            print(f"⏳ Waiting for clipboard copy...")
+                        await asyncio.sleep(2)  # Wait longer for clipboard
+                        break
             except:
                 if debug:
                     pass  # Silently try next selector
