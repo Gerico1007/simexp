@@ -9,6 +9,7 @@ import os
 import json
 import uuid
 import asyncio
+import re
 from datetime import datetime
 from typing import Optional, Dict, List
 from pathlib import Path
@@ -142,7 +143,9 @@ def generate_yaml_header(
     ai_assistant: str = 'claude',
     agents: List[str] = None,
     issue_number: Optional[int] = None,
-    pr_number: Optional[int] = None
+    pr_number: Optional[int] = None,
+    public_url: Optional[str] = None,
+    internal_url: Optional[str] = None
 ) -> str:
     """
     Generate YAML metadata header for session note
@@ -153,6 +156,8 @@ def generate_yaml_header(
         agents: List of agent names (defaults to Assembly agents)
         issue_number: GitHub issue number being worked on
         pr_number: GitHub PR number (if applicable)
+        public_url: Public Simplenote URL for sharing
+        internal_url: Internal Simplenote URL
 
     Returns:
         YAML-formatted metadata header as string
@@ -169,8 +174,93 @@ def generate_yaml_header(
         'created_at': datetime.now().isoformat()
     }
 
+    # Add URLs if provided
+    if public_url:
+        metadata['public_url'] = public_url
+    if internal_url:
+        metadata['internal_url'] = internal_url
+
     yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
     return f"---\n{yaml_content}---\n\n"
+
+
+async def extract_simplenote_note_id(page) -> Optional[str]:
+    """
+    Extract Simplenote's internal note ID from the DOM or URL
+
+    Attempts to find the note ID from multiple sources:
+    1. URL hash/query parameters
+    2. DOM attributes (data-note-id, etc.)
+    3. Window object (app state)
+
+    Args:
+        page: Playwright page object
+
+    Returns:
+        Note ID if found, None otherwise
+    """
+    try:
+        # Strategy 1: Check URL for note ID pattern
+        url = page.url
+        # Simplenote URLs often have format: /p/noteId or ?noteId=...
+        if '/p/' in url:
+            note_id = url.split('/p/')[-1].split('?')[0]
+            if note_id and len(note_id) > 0:
+                return note_id
+
+        # Strategy 2: Try to extract from window state via JavaScript
+        try:
+            app_state = await page.evaluate("""
+                () => {
+                    // Try to access Simplenote app state
+                    if (window.__INITIAL_STATE__) {
+                        return window.__INITIAL_STATE__;
+                    }
+                    if (window.app && window.app.state) {
+                        return window.app.state;
+                    }
+                    return null;
+                }
+            """)
+
+            if app_state:
+                # Look for note ID in various common patterns
+                if isinstance(app_state, dict):
+                    if 'noteId' in app_state:
+                        return app_state['noteId']
+                    if 'note' in app_state and 'id' in app_state['note']:
+                        return app_state['note']['id']
+                    if 'current' in app_state and 'id' in app_state['current']:
+                        return app_state['current']['id']
+        except:
+            pass
+
+        # Strategy 3: Try to extract from DOM data attributes
+        try:
+            note_element = await page.query_selector('[data-note-id]')
+            if note_element:
+                note_id = await note_element.get_attribute('data-note-id')
+                if note_id:
+                    return note_id
+        except:
+            pass
+
+        # Strategy 4: Look for note ID in public link (from publish action)
+        try:
+            # After publishing, check for note ID in the URL that was generated
+            # Pattern: https://app.simplenote.com/p/yJ5sNZ
+            url = page.url
+            match = re.search(r'/p/([a-zA-Z0-9]+)', url)
+            if match:
+                return match.group(1)
+        except:
+            pass
+
+        return None
+
+    except Exception as e:
+        print(f"⚠️  Error extracting note ID: {e}")
+        return None
 
 
 async def create_session_note(
@@ -187,7 +277,9 @@ async def create_session_note(
     1. Generates a unique session UUID
     2. Uses Playwright to create a new note in Simplenote
     3. Writes YAML metadata header to the note
-    4. Saves session state to .simexp/session.json
+    4. Auto-publishes the note and captures public URL
+    5. Extracts Simplenote's internal note ID
+    6. Saves session state to .simexp/session.json with all metadata
 
     Args:
         ai_assistant: AI assistant name (claude or gemini)
@@ -197,7 +289,7 @@ async def create_session_note(
         debug: Enable debug logging
 
     Returns:
-        Dictionary with session info (session_id, note_url, etc.)
+        Dictionary with session info (session_id, public_url, simplenote_note_id, etc.)
     """
     # Generate session ID
     session_id = str(uuid.uuid4())
@@ -207,6 +299,10 @@ async def create_session_note(
     print(f"🤝 AI Assistant: {ai_assistant}")
     if issue_number:
         print(f"🎯 Issue: #{issue_number}")
+
+    public_url = None
+    internal_url = None
+    simplenote_note_id = None
 
     # Connect to Simplenote and create new note
     # ⚡ FIX: Direct metadata write to avoid navigation bug
@@ -250,7 +346,7 @@ async def create_session_note(
         await asyncio.sleep(2)
         await writer.page.wait_for_load_state('networkidle')
 
-        # Generate YAML metadata header
+        # Generate YAML metadata header (without URLs initially)
         yaml_header = generate_yaml_header(
             session_id=session_id,
             ai_assistant=ai_assistant,
@@ -272,20 +368,120 @@ async def create_session_note(
 
         print(f"✅ Metadata written to new note")
 
-    # Save session state
-    # ⚡ FIX: Use session_id as search key, not note_url
+        # 🌐 NEW: Auto-publish the session note and capture BOTH URLs
+        print(f"🌐 Publishing session note...")
+        try:
+            # Lazy import to avoid circular dependency
+            from .session_sharing import publish_note
+            publish_result = await publish_note(session_id, writer.page, debug=debug)
+
+            if publish_result:
+                public_url = publish_result.get('public_url')
+                internal_url = publish_result.get('internal_url')
+
+                if public_url:
+                    print(f"✅ Public URL: {public_url}")
+
+                    # Extract note ID from public URL if available
+                    # Pattern: https://app.simplenote.com/p/yJ5sNZ
+                    match = re.search(r'/p/([a-zA-Z0-9]+)', public_url)
+                    if match:
+                        simplenote_note_id = match.group(1)
+                        print(f"🔑 Simplenote Note ID: {simplenote_note_id}")
+
+                if internal_url:
+                    print(f"✅ Internal URL: {internal_url}")
+
+                # Update note metadata with the URLs we captured
+                if public_url or internal_url:
+                    print(f"📝 Updating note metadata with URLs...")
+                    yaml_header_with_urls = generate_yaml_header(
+                        session_id=session_id,
+                        ai_assistant=ai_assistant,
+                        issue_number=issue_number,
+                        public_url=public_url,
+                        internal_url=internal_url
+                    )
+
+                    try:
+                        # ⚡ Search for the note again to properly focus on it
+                        # This ensures we're editing the right note after publishing
+                        print(f"🔍 Searching for note to update metadata...")
+                        note_found = await search_and_select_note(session_id, writer.page, debug=False)
+
+                        if note_found:
+                            print(f"✅ Note found and focused")
+                            await asyncio.sleep(1)
+
+                            # Navigate to end of note and append URLs
+                            editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
+                            await editor.click()
+                            await asyncio.sleep(0.2)
+
+                            # Go to end of document
+                            await writer.page.keyboard.press('Control+End')
+                            await asyncio.sleep(0.2)
+
+                            # Append URL fields to the end
+                            url_additions = ""
+                            if public_url:
+                                url_additions += f"public_url: {public_url}\n"
+                            if internal_url:
+                                url_additions += f"internal_url: {internal_url}\n"
+
+                            # Type directly (not paste)
+                            await writer.page.keyboard.type(url_additions, delay=0)
+                            await asyncio.sleep(1.5)  # Wait for autosave
+
+                            print(f"✅ Note metadata updated with URLs")
+                        else:
+                            print(f"⚠️  Could not find note to update metadata")
+                            print(f"💡 URLs are saved in session.json")
+
+                    except Exception as e:
+                        print(f"⚠️  Could not update metadata: {e}")
+                        print(f"💡 URLs are saved in session.json, check note manually")
+            else:
+                print(f"⚠️  Note created but not published (check manually in Simplenote)")
+
+        except Exception as e:
+            print(f"⚠️  Error publishing note: {e}")
+            print(f"💡 Note created successfully but publishing failed")
+
+        # Additional attempt to extract note ID if not already found
+        if not simplenote_note_id:
+            try:
+                simplenote_note_id = await extract_simplenote_note_id(writer.page)
+                if simplenote_note_id:
+                    print(f"🔑 Extracted Simplenote Note ID: {simplenote_note_id}")
+            except Exception as e:
+                print(f"⚠️  Could not extract note ID: {e}")
+
+    # Save session state with new fields
+    # ⚡ ENHANCED: Include both public_url and internal_url
     session_data = {
         'session_id': session_id,
         'search_key': session_id,  # Use session_id to find the note via search
         'ai_assistant': ai_assistant,
         'issue_number': issue_number,
-        'created_at': datetime.now().isoformat()
+        'created_at': datetime.now().isoformat(),
+        'public_url': public_url,  # NEW: Public URL for sharing
+        'internal_url': internal_url,  # NEW: Internal Simplenote URL
+        'simplenote_note_id': simplenote_note_id,  # NEW: Internal note ID
+        'published_at': datetime.now().isoformat() if (public_url or internal_url) else None  # NEW: Publication timestamp
     }
 
     state = SessionState()
     state.save_session(session_data)
     print(f"💾 Session state saved to {state.state_file}")
     print(f"🔑 Search key: {session_id}")
+
+    if public_url:
+        print(f"🌐 Public URL: {public_url}")
+    if internal_url:
+        print(f"🔗 Internal URL: {internal_url}")
+
+    print(f"✅ Session created and published!")
 
     return session_data
 

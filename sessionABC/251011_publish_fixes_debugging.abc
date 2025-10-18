@@ -48,7 +48,6 @@ K:Gmaj
 % - Measure 33-40: Autosave timing fix (3 seconds)
 % - Measure 41-48: All tests passing
 % - Measure 49-56: Peaceful completion, ready for commit
-
 % ═══════════════════════════════════════════════════════════
 % PART A: CONFIDENT TESTING
 % "Let's test publish!" - G major, Vivace, mf
@@ -57,7 +56,6 @@ V:1 name="Testing"
 %%MIDI program 73
 |: "G" !mf! d2B B2G | "C" E2G c2e | "D" d2A ^F2D | "G" G3 B3 |
 | "Em" B2e g2e | "C" e2c G2E | "D7" D2^F A2c | "G" B3 G3 :|
-
 % ═══════════════════════════════════════════════════════════
 % PART B: BUG DISCOVERIES
 % "Wait, it's not working..." - E minor, confusion, p
