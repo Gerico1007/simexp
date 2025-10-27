@@ -31,33 +31,41 @@ def save_config(config):
         yaml.safe_dump(config, file)
 
 def is_clipboard_content_valid():
-    clipboard_content = pyperclip.paste().strip()
-    return clipboard_content.startswith('http://') or clipboard_content.startswith('https://')
+    try:
+        clipboard_content = pyperclip.paste().strip()
+        return clipboard_content.startswith('http://') or clipboard_content.startswith('https://')
+    except pyperclip.PyperclipException:
+        # Clipboard unavailable (headless/SSH environment)
+        return False
 
 def update_sources_from_clipboard():
     # Get the current clipboard content
-    clipboard_content = pyperclip.paste().strip()
-    
+    try:
+        clipboard_content = pyperclip.paste().strip()
+    except pyperclip.PyperclipException:
+        # Clipboard unavailable (headless/SSH environment) - skip clipboard check
+        return
+
     # Check if the clipboard content is a valid URL
     if is_clipboard_content_valid():
         config = load_config()
-        
+
         # Create a new source entry
         new_source = {
             'url': clipboard_content,
             'filename': os.path.basename(clipboard_content).split('.')[0] + '.md'
         }
-        
+
         # Update the configuration with the new source
         if 'CLIPBOARD_SOURCES' not in config:
             config['CLIPBOARD_SOURCES'] = []
-        
+
         config['CLIPBOARD_SOURCES'].append(new_source)
-        
+
         # Ensure we do not exceed the maximum number of sources
         if len(config['CLIPBOARD_SOURCES']) > MAX_SOURCES:
             config['CLIPBOARD_SOURCES'] = config['CLIPBOARD_SOURCES'][-MAX_SOURCES:]
-        
+
         save_config(config)
     else:
         print("Invalid clipboard content. No changes made to the configuration.")
