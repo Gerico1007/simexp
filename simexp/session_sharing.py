@@ -641,7 +641,7 @@ async def list_collaborators(
 # High-level functions that combine search + action
 
 async def publish_session_note(
-    cdp_url: str = 'http://localhost:9223',
+    cdp_url: Optional[str] = None,
     debug: bool = True
 ) -> Optional[str]:
     """
@@ -650,6 +650,11 @@ async def publish_session_note(
     Returns:
         Public URL if successful, None otherwise
     """
+    # Use get_cdp_url() if cdp_url not provided (Issue #38 fix)
+    if cdp_url is None:
+        from .simex import get_cdp_url
+        cdp_url = get_cdp_url()
+
     session = get_active_session()
     if not session:
         print("❌ No active session")
@@ -687,7 +692,7 @@ async def publish_session_note(
 
 
 async def unpublish_session_note(
-    cdp_url: str = 'http://localhost:9223',
+    cdp_url: Optional[str] = None,
     debug: bool = True
 ) -> bool:
     """
@@ -696,6 +701,11 @@ async def unpublish_session_note(
     Returns:
         True if successful, False otherwise
     """
+    # Use get_cdp_url() if cdp_url not provided (Issue #38 fix)
+    if cdp_url is None:
+        from .simex import get_cdp_url
+        cdp_url = get_cdp_url()
+
     session = get_active_session()
     if not session:
         print("❌ No active session")
@@ -734,7 +744,7 @@ async def unpublish_session_note(
 
 async def add_session_collaborator(
     email: str,
-    cdp_url: str = 'http://localhost:9223',
+    cdp_url: Optional[str] = None,
     debug: bool = True
 ) -> bool:
     """
@@ -746,6 +756,11 @@ async def add_session_collaborator(
     Returns:
         True if successful, False otherwise
     """
+    # Use get_cdp_url() if cdp_url not provided (Issue #38 fix)
+    if cdp_url is None:
+        from .simex import get_cdp_url
+        cdp_url = get_cdp_url()
+
     session = get_active_session()
     if not session:
         print("❌ No active session")
@@ -785,7 +800,7 @@ async def add_session_collaborator(
 
 async def remove_session_collaborator(
     email: str,
-    cdp_url: str = 'http://localhost:9223',
+    cdp_url: Optional[str] = None,
     debug: bool = True
 ) -> bool:
     """
@@ -797,6 +812,11 @@ async def remove_session_collaborator(
     Returns:
         True if successful, False otherwise
     """
+    # Use get_cdp_url() if cdp_url not provided (Issue #38 fix)
+    if cdp_url is None:
+        from .simex import get_cdp_url
+        cdp_url = get_cdp_url()
+
     session = get_active_session()
     if not session:
         print("❌ No active session")
@@ -835,7 +855,7 @@ async def remove_session_collaborator(
 
 
 async def list_session_collaborators(
-    cdp_url: str = 'http://localhost:9223',
+    cdp_url: Optional[str] = None,
     debug: bool = True
 ) -> List[str]:
     """
@@ -844,6 +864,11 @@ async def list_session_collaborators(
     Returns:
         List of collaborator email addresses
     """
+    # Use get_cdp_url() if cdp_url not provided (Issue #38 fix)
+    if cdp_url is None:
+        from .simex import get_cdp_url
+        cdp_url = get_cdp_url()
+
     session = get_active_session()
     if not session:
         print("❌ No active session")
@@ -882,7 +907,7 @@ async def list_session_collaborators(
 
 async def share_session_note(
     identifier: str,
-    cdp_url: str = 'http://localhost:9223',
+    cdp_url: Optional[str] = None,
     debug: bool = True
 ) -> Dict[str, any]:
     """
@@ -907,6 +932,11 @@ async def share_session_note(
         share_session_note("assembly")  → Add all Assembly members
         share_session_note("custom@example.com")  → Add custom email
     """
+    # Use get_cdp_url() if cdp_url not provided (Issue #38 fix)
+    if cdp_url is None:
+        from .simex import get_cdp_url
+        cdp_url = get_cdp_url()
+
     session = get_active_session()
     if not session:
         print("❌ No active session")

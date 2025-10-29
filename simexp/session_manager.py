@@ -176,7 +176,7 @@ def generate_yaml_header(
 async def create_session_note(
     ai_assistant: str = 'claude',
     issue_number: Optional[int] = None,
-    cdp_url: str = 'http://localhost:9223',
+    cdp_url: Optional[str] = None,
     headless: bool = False,
     debug: bool = True
 ) -> Dict:
@@ -201,6 +201,11 @@ async def create_session_note(
     """
     # Generate session ID
     session_id = str(uuid.uuid4())
+
+    # Use get_cdp_url() if cdp_url not provided (Issue #38 fix)
+    if cdp_url is None:
+        from .simex import get_cdp_url
+        cdp_url = get_cdp_url()
 
     print(f"♠️🌿🎸🧵 Creating Session Note")
     print(f"🔮 Session ID: {session_id}")
