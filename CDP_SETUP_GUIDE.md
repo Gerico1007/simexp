@@ -155,6 +155,231 @@ curl http://localhost:9222/json/version
 
 ---
 
+## 🌐 Network-Wide CDP Access (Issue #36)
+**🧵 Synth Enhancement: Cross-Device Assembly Coordination**
+
+### **Enable Access from All Devices on Your Network**
+
+By default, Chrome's CDP binds to `localhost` only. To access from other devices (phones, tablets, other computers), launch Chrome with network binding:
+
+```bash
+# Close any existing Chrome instances
+pkill chromium
+
+# Get your local network IP
+hostname -I | awk '{print $1}'
+# Example output: 192.168.1.100
+
+# Launch Chrome with network-wide CDP access
+chromium --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 &
+```
+
+**What `--remote-debugging-address=0.0.0.0` does:**
+- Binds CDP to **all network interfaces** (not just localhost)
+- Allows connections from any device on your WiFi network
+- Enables true cross-device Assembly coordination
+
+---
+
+### **Configure SimExp for Network Access**
+
+#### **Option 1: Using `simexp init`**
+The easiest way - SimExp will auto-detect your network IP:
+
+```bash
+simexp init
+```
+
+During setup, you'll see:
+```
+🌐 Chrome DevTools Protocol (CDP) Configuration:
+   🧵 Network IP detected: 192.168.1.100
+
+   Enable network-wide access (all devices on WiFi)? [y/N]: y
+
+   ✓ Network-wide CDP enabled: http://192.168.1.100:9222
+   ⚠️  Security: Only use on trusted networks!
+```
+
+#### **Option 2: Manual Config File Edit**
+Edit `~/.simexp/simexp.yaml`:
+
+```yaml
+BASE_PATH: /path/to/your/content
+CDP_URL: http://192.168.1.100:9222  # Use your actual IP
+CDP_BIND_ADDRESS: 0.0.0.0           # Network-wide access
+SOURCES: []
+```
+
+#### **Option 3: Environment Variable (Session-Specific)**
+```bash
+export SIMEXP_CDP_URL=http://192.168.1.100:9222
+simexp session start --ai claude --issue 36
+```
+
+#### **Option 4: Command Line Override**
+```bash
+simexp session start --cdp-url http://192.168.1.100:9222 --ai claude
+```
+
+---
+
+### **Test Network Access**
+
+#### **From the Same Computer:**
+```bash
+curl http://192.168.1.100:9222/json/version
+```
+
+#### **From Another Device (Phone, Tablet, etc.):**
+Open a browser and navigate to:
+```
+http://192.168.1.100:9222
+```
+
+You should see the Chrome DevTools Protocol interface listing all open tabs.
+
+---
+
+### **Use SimExp from Android Termux**
+
+Once your desktop Chrome is network-accessible:
+
+```bash
+# On your Android device in Termux
+export SIMEXP_CDP_URL=http://192.168.1.100:9222  # Your desktop's IP
+
+# Start SimExp session - it will control your desktop Chrome!
+simexp session start --ai claude --issue 36
+```
+
+**🌊 Cross-Device Fluidity Achieved:**
+- Type commands on your phone (Termux)
+- Control Chrome on your desktop
+- Write to Simplenote from anywhere
+- All devices see changes in real-time
+
+---
+
+### **🔒 Security Considerations**
+
+**⚠️ IMPORTANT:** Network-wide CDP access exposes your browser to your entire WiFi network.
+
+**Safe Usage:**
+- ✅ Use only on **trusted home/office WiFi**
+- ✅ Disable when not needed
+- ✅ Never use on public WiFi
+- ✅ Consider firewall rules to restrict to specific devices
+
+**Localhost-Only Mode (More Secure):**
+If you only need local access, use:
+```bash
+chromium --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 &
+```
+
+Or in `~/.simexp/simexp.yaml`:
+```yaml
+CDP_BIND_ADDRESS: 127.0.0.1  # Localhost only
+```
+
+---
+
+### **Firewall Configuration (Optional)**
+
+#### **Ubuntu/Debian (ufw):**
+```bash
+# Allow CDP only from local network (example: 192.168.1.0/24)
+sudo ufw allow from 192.168.1.0/24 to any port 9222
+
+# Or allow only specific device
+sudo ufw allow from 192.168.1.50 to any port 9222
+```
+
+#### **Check Who Can Connect:**
+```bash
+# See active CDP connections
+netstat -an | grep 9222
+```
+
+---
+
+### **Cross-Device Session Coordination**
+
+When you create a session, the CDP endpoint is now stored in `.simexp/session.json`:
+
+```json
+{
+  "session_id": "abc-123-def",
+  "search_key": "abc-123-def",
+  "ai_assistant": "claude",
+  "issue_number": 36,
+  "cdp_endpoint": "http://192.168.1.100:9222",
+  "created_at": "2025-01-09T10:30:00"
+}
+```
+
+This allows:
+- **Session sharing** across devices
+- **Assembly collaboration** from different machines
+- **Network debugging** of browser automation
+
+---
+
+### **Network CDP Troubleshooting**
+
+#### **Issue: "Connection refused" from another device**
+
+**Check Chrome is bound to 0.0.0.0:**
+```bash
+# On the Chrome host machine
+netstat -tuln | grep 9222
+# Should show: 0.0.0.0:9222 (not 127.0.0.1:9222)
+```
+
+**Solution:**
+```bash
+# Relaunch with correct bind address
+pkill chromium
+chromium --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 &
+```
+
+#### **Issue: "Cannot reach from phone/tablet"**
+
+**Check IP address:**
+```bash
+# Verify your desktop's IP
+hostname -I | awk '{print $1}'
+```
+
+**Check firewall:**
+```bash
+# Temporarily disable firewall to test
+sudo ufw disable
+# Test connection
+# Re-enable after testing
+sudo ufw enable
+```
+
+**Verify devices on same network:**
+```bash
+# From desktop, ping your phone (if you know its IP)
+ping 192.168.1.50
+```
+
+---
+
+## 🎯 Network Access Checklist
+
+- [ ] Get desktop IP: `hostname -I | awk '{print $1}'`
+- [ ] Launch Chrome: `chromium --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 &`
+- [ ] Test locally: `curl http://YOUR_IP:9222/json/version`
+- [ ] Test from phone browser: `http://YOUR_IP:9222`
+- [ ] Configure SimExp: `simexp init` or edit `~/.simexp/simexp.yaml`
+- [ ] Run session from any device: `simexp session start --cdp-url http://YOUR_IP:9222`
+- [ ] Verify CDP endpoint stored in `.simexp/session.json`
+
+---
+
 ## 🎸 JamAI Note:
 
 This approach uses **your authenticated browser session** - no password handling, no separate login automation. Playwright just "rides along" with your existing Chrome, using the session you've already established.

@@ -274,11 +274,13 @@ async def create_session_note(
 
     # Save session state
     # ⚡ FIX: Use session_id as search key, not note_url
+    # 🧵 Enhancement (Issue #36): Store CDP endpoint for cross-device coordination
     session_data = {
         'session_id': session_id,
         'search_key': session_id,  # Use session_id to find the note via search
         'ai_assistant': ai_assistant,
         'issue_number': issue_number,
+        'cdp_endpoint': cdp_url,  # Store CDP URL for network-wide access
         'created_at': datetime.now().isoformat()
     }
 
