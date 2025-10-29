@@ -92,6 +92,55 @@ def get_cdp_url(override: str = None) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════
+# NETWORK IP DETECTION - Issue #36
+# 🧵 Synth: Network-wide CDP access coordination
+# ═══════════════════════════════════════════════════════════════
+
+def get_local_ip():
+    """
+    Detect local network IP address for network-wide CDP access
+
+    Returns:
+        str: Local IP address (e.g., '192.168.1.100'), or None if not detected
+
+    🧵 Synth: Enables cross-device Assembly coordination
+    """
+    import socket
+    try:
+        # Create a socket to external DNS to determine local IP
+        # This doesn't actually send data, just determines routing
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0)
+        try:
+            # Google DNS as routing target
+            s.connect(('8.8.8.8', 80))
+            local_ip = s.getsockname()[0]
+        finally:
+            s.close()
+        return local_ip
+    except Exception:
+        return None
+
+
+def get_network_cdp_url(port=9222):
+    """
+    Generate network-accessible CDP URL using local IP
+
+    Args:
+        port: CDP port number (default: 9222)
+
+    Returns:
+        str: Network CDP URL (e.g., 'http://192.168.1.100:9222'), or None if IP not detected
+
+    🧵 Synth: For cross-device browser automation coordination
+    """
+    local_ip = get_local_ip()
+    if local_ip:
+        return f'http://{local_ip}:{port}'
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════
 # CHROME CDP HELPER FUNCTIONS - Issue #17
 # ♠️🌿🎸🧵 G.Music Assembly - Auto-launch Chrome for init
 # ═══════════════════════════════════════════════════════════════
@@ -127,26 +176,33 @@ def check_chrome_cdp_running(port=9222):
         return False
 
 
-def launch_chrome_cdp(port=9222):
+def launch_chrome_cdp(port=9222, bind_address='0.0.0.0'):
     """
     Launch Chrome with CDP enabled
 
     Args:
         port: CDP port number (default: 9222)
+        bind_address: Network interface to bind (default: '0.0.0.0' for network-wide access)
+                     Use '127.0.0.1' for localhost-only (more secure)
 
     Returns:
         bool: True if Chrome launched successfully, False otherwise
+
+    🧵 Synth Enhancement (Issue #36): Network-wide CDP access for cross-device coordination
     """
     chrome_cmd = find_chrome_executable()
     if not chrome_cmd:
         return False
 
     try:
-        subprocess.Popen([
+        launch_args = [
             chrome_cmd,
             f'--remote-debugging-port={port}',
+            f'--remote-debugging-address={bind_address}',
             '--user-data-dir=' + os.path.expanduser('~/.chrome-simexp')
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ]
+
+        subprocess.Popen(launch_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         # Wait for Chrome to start
         time.sleep(3)
@@ -989,6 +1045,194 @@ def run_extraction():
     print("=" * 60)
 
 
+# ═══════════════════════════════════════════════════════════════
+# BROWSER/CDP TESTING COMMANDS - Issue #36 Enhancement
+# 🧵 Synth: Quick CDP testing without full init
+# ═══════════════════════════════════════════════════════════════
+
+def browser_test_command():
+    """
+    Test Chrome CDP connection and show network binding status
+
+    🧵 Synth: Quick testing command for developers
+    """
+    import subprocess
+
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║  🧵 Chrome CDP Connection Test                               ║")
+    print("║  ♠️🌿🎸🧵 G.Music Assembly                                    ║")
+    print("╚══════════════════════════════════════════════════════════════╝")
+    print()
+
+    # 1. Check CDP URL configuration
+    cdp_url = get_cdp_url()
+    print(f"📡 CDP URL Configuration:")
+    print(f"   {cdp_url}")
+    print()
+
+    # 2. Detect network IP
+    local_ip = get_local_ip()
+    if local_ip:
+        network_url = get_network_cdp_url()
+        print(f"🌐 Network IP Detected:")
+        print(f"   {local_ip}")
+        print(f"   Network CDP URL: {network_url}")
+    else:
+        print(f"⚠️  Could not detect network IP")
+    print()
+
+    # 3. Check if Chrome is running
+    print("🔍 Chrome CDP Status:")
+    if check_chrome_cdp_running():
+        print("   ✅ Chrome CDP is RUNNING on port 9222")
+        print()
+
+        # 4. Check network binding
+        print("🔌 Network Binding Check:")
+        try:
+            result = subprocess.run(['netstat', '-tuln'], capture_output=True, text=True)
+            netstat_output = result.stdout
+
+            if '0.0.0.0:9222' in netstat_output:
+                print("   ✅ Bound to: 0.0.0.0 (NETWORK-WIDE ACCESS)")
+                print("   📱 Accessible from all devices on WiFi")
+            elif '127.0.0.1:9222' in netstat_output:
+                print("   ✅ Bound to: 127.0.0.1 (LOCALHOST-ONLY)")
+                print("   🔒 Secure mode - only this machine can access")
+            else:
+                print("   ⚠️  Could not determine binding (port 9222 not found in netstat)")
+        except Exception as e:
+            print(f"   ⚠️  Could not run netstat: {e}")
+        print()
+
+        # 5. Test connection
+        print("🧪 Connection Test:")
+        try:
+            response = requests.get(f'{cdp_url}/json/version', timeout=3)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"   ✅ Connection SUCCESSFUL")
+                print(f"   Browser: {data.get('Browser', 'Unknown')}")
+                print(f"   User-Agent: {data.get('User-Agent', 'Unknown')[:60]}...")
+
+                # Test network access if we have network IP
+                if local_ip and '127.0.0.1' not in cdp_url:
+                    print()
+                    print("🌐 Network Access Test:")
+                    network_test_url = f'http://{local_ip}:9222/json/version'
+                    try:
+                        network_response = requests.get(network_test_url, timeout=2)
+                        if network_response.status_code == 200:
+                            print(f"   ✅ Network access WORKING")
+                            print(f"   📱 You can access from other devices: {network_test_url}")
+                        else:
+                            print(f"   ❌ Network access failed (status: {network_response.status_code})")
+                    except Exception as ne:
+                        print(f"   ❌ Network access BLOCKED: {ne}")
+                        print(f"   💡 Chrome might be bound to localhost only")
+            else:
+                print(f"   ❌ Connection failed (status: {response.status_code})")
+        except Exception as e:
+            print(f"   ❌ Connection FAILED: {e}")
+            print(f"   💡 Chrome CDP might not be running or accessible")
+    else:
+        print("   ❌ Chrome CDP is NOT running")
+        print()
+        print("💡 To start Chrome with CDP:")
+        print(f"   Localhost-only (secure):")
+        print(f"   google-chrome --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --user-data-dir=~/.chrome-simexp &")
+        print()
+        print(f"   Network-wide (WiFi access):")
+        print(f"   google-chrome --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 --user-data-dir=~/.chrome-simexp &")
+        print()
+        print(f"   Or use: simexp browser launch [--network]")
+
+    print()
+    print("=" * 62)
+
+
+def browser_launch_command(port=9222, bind_address='127.0.0.1'):
+    """
+    Launch Chrome with CDP enabled
+
+    Args:
+        port: CDP port (default: 9222)
+        bind_address: Network binding ('0.0.0.0' for network, '127.0.0.1' for localhost)
+
+    🧵 Synth: Convenient Chrome launcher with network options
+    """
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║  🚀 Chrome CDP Launch                                        ║")
+    print("║  ♠️🌿🎸🧵 G.Music Assembly                                    ║")
+    print("╚══════════════════════════════════════════════════════════════╝")
+    print()
+
+    # Check if Chrome is already running
+    if check_chrome_cdp_running(port):
+        print(f"⚠️  Chrome CDP is already running on port {port}")
+        print()
+        print("   To restart with different binding:")
+        print(f"   1. Stop Chrome: pkill chrome")
+        print(f"   2. Rerun: simexp browser launch [--network]")
+        return
+
+    # Show what we're about to do
+    mode = "NETWORK-WIDE ACCESS" if bind_address == '0.0.0.0' else "LOCALHOST-ONLY"
+    security = "⚠️  Accessible from WiFi devices" if bind_address == '0.0.0.0' else "🔒 Secure - only this machine"
+
+    print(f"📡 Launching Chrome CDP:")
+    print(f"   Port: {port}")
+    print(f"   Bind Address: {bind_address}")
+    print(f"   Mode: {mode}")
+    print(f"   {security}")
+    print()
+
+    # Find Chrome
+    chrome_cmd = find_chrome_executable()
+    if not chrome_cmd:
+        print("❌ Could not find Chrome/Chromium on your system")
+        print()
+        print("   Install Chrome and try again")
+        return
+
+    print(f"🔍 Found: {chrome_cmd}")
+    print()
+
+    # Launch Chrome
+    print("🚀 Launching...")
+    if launch_chrome_cdp(port=port, bind_address=bind_address):
+        print("✅ Chrome launched successfully!")
+        print()
+
+        # Show CDP URL
+        cdp_url = f'http://localhost:{port}'
+        print(f"📡 CDP URL: {cdp_url}")
+
+        # Show network URL if network binding
+        if bind_address == '0.0.0.0':
+            local_ip = get_local_ip()
+            if local_ip:
+                network_url = f'http://{local_ip}:{port}'
+                print(f"🌐 Network URL: {network_url}")
+                print()
+                print(f"📱 Access from other devices:")
+                print(f"   export SIMEXP_CDP_URL={network_url}")
+                print(f"   simexp session start --ai claude --issue XX")
+
+        print()
+        print("✅ Chrome is ready for SimExp!")
+        print()
+        print("Next steps:")
+        print("  1. Go to https://app.simplenote.com in the Chrome window")
+        print("  2. Login to Simplenote")
+        print("  3. Run: simexp browser test")
+    else:
+        print("❌ Failed to launch Chrome")
+        print()
+        print("   Try manually:")
+        print(f"   {chrome_cmd} --remote-debugging-port={port} --remote-debugging-address={bind_address} --user-data-dir=~/.chrome-simexp &")
+
+
 def main():
     """
     Main CLI entry point - parses arguments FIRST, then dispatches to appropriate command
@@ -1209,6 +1453,37 @@ def main():
                 print("Run 'simexp session' for usage information")
                 sys.exit(1)
 
+        elif command == 'browser':
+            # Browser/CDP testing command suite (Issue #36 enhancement)
+            if len(sys.argv) < 3:
+                print("Usage: simexp browser <subcommand>")
+                print("\nBrowser/CDP Commands:")
+                print("  test                    - Test Chrome CDP connection and network binding")
+                print("  launch [--network]      - Launch Chrome with CDP (--network for WiFi access)")
+                sys.exit(1)
+
+            subcommand = sys.argv[2]
+
+            if subcommand == 'test':
+                browser_test_command()
+
+            elif subcommand == 'launch':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Launch Chrome with CDP',
+                    prog='simexp browser launch')
+                parser.add_argument('--network', action='store_true', help='Enable network-wide access (0.0.0.0)')
+                parser.add_argument('--port', type=int, default=9222, help='CDP port (default: 9222)')
+
+                args = parser.parse_args(sys.argv[3:])
+                bind_address = '0.0.0.0' if args.network else '127.0.0.1'
+                browser_launch_command(port=args.port, bind_address=bind_address)
+
+            else:
+                print(f"Unknown browser subcommand: {subcommand}")
+                print("Run 'simexp browser' for usage information")
+                sys.exit(1)
+
         elif command == 'help' or command == '--help' or command == '-h':
             print("♠️🌿🎸🧵 SimExp - Simplenote Web Content Extractor & Writer")
             print("\nCommands:")
@@ -1217,7 +1492,12 @@ def main():
             print("  simexp write <url> [msg]     - Write to Simplenote note")
             print("  simexp read <url>            - Read from Simplenote note")
             print("  simexp session <subcommand>  - Session management")
+            print("  simexp browser <subcommand>  - Browser/CDP testing & management")
             print("  simexp help                  - Show this help")
+            print("\nBrowser/CDP Commands (Issue #36):")
+            print("  simexp browser test          - Test Chrome CDP connection & network binding")
+            print("  simexp browser launch        - Launch Chrome with CDP (localhost-only)")
+            print("  simexp browser launch --network  - Launch Chrome with network-wide access")
             print("\nSession Commands:")
             print("  simexp session start [--ai <assistant>] [--issue <number>]")
             print("                               - Start new session with Simplenote note")
