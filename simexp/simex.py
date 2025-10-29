@@ -43,9 +43,10 @@ def get_cdp_url(override: str = None) -> str:
 
     Priority order:
     1. override parameter (highest - explicit function call)
-    2. SIMEXP_CDP_URL environment variable (session-specific)
-    3. CDP_URL from ~/.simexp/simexp.yaml (persistent user config)
-    4. http://localhost:9222 (fallback default)
+    2. SIMEXP_PORT environment variable (just port number) - Issue #38
+    3. SIMEXP_CDP_URL environment variable (full URL)
+    4. CDP_URL from ~/.simexp/simexp.yaml (persistent user config)
+    5. http://localhost:9223 (fallback default)
 
     Args:
         override: Explicit CDP URL (e.g., from --cdp-url flag)
@@ -55,29 +56,43 @@ def get_cdp_url(override: str = None) -> str:
 
     Examples:
         # Command-line override (highest priority)
-        get_cdp_url('http://192.168.1.100:9222')
+        get_cdp_url('http://192.168.1.100:9223')
 
-        # Environment variable
-        export SIMEXP_CDP_URL=http://10.0.0.5:9222
-        get_cdp_url()  # → http://10.0.0.5:9222
+        # SIMEXP_PORT environment variable (Issue #38)
+        export SIMEXP_PORT=9223
+        get_cdp_url()  # → http://localhost:9223
+
+        # SIMEXP_CDP_URL environment variable
+        export SIMEXP_CDP_URL=http://10.0.0.5:9223
+        get_cdp_url()  # → http://10.0.0.5:9223
 
         # Config file
-        # ~/.simexp/simexp.yaml contains: CDP_URL: http://server:9222
-        get_cdp_url()  # → http://server:9222
+        # ~/.simexp/simexp.yaml contains: CDP_URL: http://server:9223
+        get_cdp_url()  # → http://server:9223
 
         # Fallback
-        get_cdp_url()  # → http://localhost:9222
+        get_cdp_url()  # → http://localhost:9223
     """
     # Priority 1: Explicit override parameter
     if override:
         return override
 
-    # Priority 2: Environment variable
+    # Priority 2: SIMEXP_PORT environment variable (Issue #38)
+    # Convenient for just setting a port number
+    env_port = os.environ.get('SIMEXP_PORT')
+    if env_port:
+        try:
+            port_num = int(env_port)
+            return f'http://localhost:{port_num}'
+        except ValueError:
+            pass  # Fall through if invalid port number
+
+    # Priority 3: SIMEXP_CDP_URL environment variable (full URL)
     env_cdp = os.environ.get('SIMEXP_CDP_URL')
     if env_cdp:
         return env_cdp
 
-    # Priority 3: Config file
+    # Priority 4: Config file
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r') as f:
@@ -87,8 +102,73 @@ def get_cdp_url(override: str = None) -> str:
         except Exception:
             pass  # Fall through to default
 
-    # Priority 4: Default localhost (Chrome DevTools Protocol standard port)
-    return 'http://localhost:9222'
+    # Priority 5: Default localhost (Chrome DevTools Protocol standard port)
+    return 'http://localhost:9223'
+
+
+def normalize_cdp_url(input_str: str) -> str:
+    """
+    Normalize CDP URL input - handles various formats
+
+    Handles:
+    - Full URLs: http://localhost:9223 → no change
+    - Just port: 9223 → http://localhost:9223
+    - IP:Port: 192.168.1.100:9223 → http://192.168.1.100:9223
+
+    Args:
+        input_str: User input for CDP URL
+
+    Returns:
+        Properly formatted CDP URL
+
+    🧵 Synth (Issue #38): Fix URL formatting bug in simexp init
+    """
+    input_str = input_str.strip()
+
+    # Already a full URL
+    if input_str.startswith('http://') or input_str.startswith('https://'):
+        return input_str
+
+    # Just a port number
+    if input_str.isdigit():
+        return f'http://localhost:{input_str}'
+
+    # IP:Port format (e.g., 192.168.1.100:9222)
+    if ':' in input_str and not input_str.startswith('http'):
+        return f'http://{input_str}'
+
+    # Fallback: assume it's meant to be localhost:port
+    return f'http://localhost:{input_str}'
+
+
+def extract_port_from_url(cdp_url: str) -> int:
+    """
+    Extract port number from CDP URL
+
+    Args:
+        cdp_url: CDP URL (e.g., 'http://localhost:9223')
+
+    Returns:
+        Port number (default: 9223 if not found)
+
+    Examples:
+        http://localhost:9223 → 9223
+        http://192.168.1.100:9222 → 9222
+        http://localhost → 9223 (default)
+
+    🧵 Synth (Issue #38): Extract port for auto-launch
+    """
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(cdp_url)
+        if parsed.port:
+            return parsed.port
+        # No port specified, return default
+        return 9223
+    except Exception:
+        # Parsing failed, return default
+        return 9223
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -122,15 +202,15 @@ def get_local_ip():
         return None
 
 
-def get_network_cdp_url(port=9222):
+def get_network_cdp_url(port=9223):
     """
     Generate network-accessible CDP URL using local IP
 
     Args:
-        port: CDP port number (default: 9222)
+        port: CDP port number (default: 9223)
 
     Returns:
-        str: Network CDP URL (e.g., 'http://192.168.1.100:9222'), or None if IP not detected
+        str: Network CDP URL (e.g., 'http://192.168.1.100:9223'), or None if IP not detected
 
     🧵 Synth: For cross-device browser automation coordination
     """
@@ -159,12 +239,12 @@ def find_chrome_executable():
     return None
 
 
-def check_chrome_cdp_running(port=9222):
+def check_chrome_cdp_running(port=9223):
     """
     Check if Chrome CDP is running on specified port
 
     Args:
-        port: CDP port number (default: 9222)
+        port: CDP port number (default: 9223)
 
     Returns:
         bool: True if Chrome CDP is accessible, False otherwise
@@ -176,12 +256,12 @@ def check_chrome_cdp_running(port=9222):
         return False
 
 
-def launch_chrome_cdp(port=9222, bind_address='0.0.0.0'):
+def launch_chrome_cdp(port=9223, bind_address='0.0.0.0'):
     """
     Launch Chrome with CDP enabled
 
     Args:
-        port: CDP port number (default: 9222)
+        port: CDP port number (default: 9223)
         bind_address: Network interface to bind (default: '0.0.0.0' for network-wide access)
                      Use '127.0.0.1' for localhost-only (more secure)
 
@@ -237,36 +317,44 @@ def init_config():
         filename = input("Enter filename for this source: ")
         config['SOURCES'].append({'url': url, 'filename': filename})
 
-    # CDP URL configuration (Issue #11)
+    # CDP URL configuration (Issue #11, Issue #38)
     print("\n🌐 Chrome DevTools Protocol (CDP) Configuration:")
     print("   CDP URL allows SimExp to connect to your authenticated Chrome browser.")
-    print("   Leave empty to use default (localhost:9222)")
+    print("   Leave empty to use default (localhost:9223)")
     print()
     print("   Examples:")
-    print("   - localhost:9222 (default, for single-user setup)")
-    print("   - http://192.168.1.100:9222 (connect to server on local network)")
-    print("   - http://10.0.0.5:9222 (connect to remote server)")
+    print("   - 9223 (just port number - default)")
+    print("   - localhost:9223 (default, for single-user setup)")
+    print("   - http://192.168.1.100:9223 (connect to server on local network)")
+    print("   - http://10.0.0.5:9223 (connect to remote server)")
     print()
 
-    cdp_input = input("CDP URL [default: http://localhost:9222]: ").strip()
+    cdp_input = input("CDP URL [default: http://localhost:9223]: ").strip()
     if cdp_input:
-        config['CDP_URL'] = cdp_input
-        print(f"   ✓ CDP URL set to: {cdp_input}")
+        # Normalize the input (Issue #38: handle just port numbers like "9223")
+        normalized_url = normalize_cdp_url(cdp_input)
+        config['CDP_URL'] = normalized_url
+        print(f"   ✓ CDP URL set to: {normalized_url}")
     else:
-        print(f"   ✓ Using default: http://localhost:9222")
+        config['CDP_URL'] = 'http://localhost:9223'
+        print(f"   ✓ Using default: http://localhost:9223")
 
     with open(CONFIG_FILE, 'w') as config_file:
         yaml.safe_dump(config, config_file)
     print(f"\n✅ Configuration saved to {CONFIG_FILE}")
 
     # ═══════════════════════════════════════════════════════════════
-    # AUTO-LAUNCH CHROME CDP - Issue #17
+    # AUTO-LAUNCH CHROME CDP - Issue #17, Issue #38
     # ♠️🌿🎸🧵 G.Music Assembly - One-command setup
     # ═══════════════════════════════════════════════════════════════
 
-    # Check if Chrome CDP is running
-    if not check_chrome_cdp_running():
-        print("\n🚀 Chrome CDP Setup")
+    # Extract port from configured CDP URL (Issue #38)
+    configured_cdp = config.get('CDP_URL', 'http://localhost:9223')
+    port = extract_port_from_url(configured_cdp)
+
+    # Check if Chrome CDP is running on configured port
+    if not check_chrome_cdp_running(port):
+        print(f"\n🚀 Chrome CDP Setup (Port {port})")
         print("   SimExp needs Chrome running with remote debugging.")
         launch = input("   Launch Chrome automatically? [Y/n]: ").strip().lower()
 
@@ -274,22 +362,24 @@ def init_config():
             chrome_cmd = find_chrome_executable()
             if chrome_cmd:
                 print(f"   🔍 Found Chrome: {chrome_cmd}")
-                if launch_chrome_cdp():
-                    print("   ✓ Chrome launched with CDP on port 9222")
+                # Launch with network-wide access (0.0.0.0) as per Issue #36
+                if launch_chrome_cdp(port=port, bind_address='0.0.0.0'):
+                    print(f"   ✓ Chrome launched with CDP on port {port}")
+                    print(f"   🌐 Network-wide access enabled")
                 else:
                     print("   ⚠️  Could not launch Chrome automatically")
                     print("\n   Run manually:")
-                    print(f"   {chrome_cmd} --remote-debugging-port=9222 --user-data-dir=~/.chrome-simexp &")
+                    print(f"   {chrome_cmd} --remote-debugging-port={port} --remote-debugging-address=0.0.0.0 --user-data-dir=~/.chrome-simexp &")
             else:
                 print("   ⚠️  Could not find Chrome/Chromium on your system")
                 print("\n   Install Chrome and run:")
-                print("   google-chrome --remote-debugging-port=9222 --user-data-dir=~/.chrome-simexp &")
+                print(f"   google-chrome --remote-debugging-port={port} --remote-debugging-address=0.0.0.0 --user-data-dir=~/.chrome-simexp &")
         else:
             print("\n   Run this command to start Chrome with CDP:")
             chrome_cmd = find_chrome_executable() or 'google-chrome'
-            print(f"   {chrome_cmd} --remote-debugging-port=9222 --user-data-dir=~/.chrome-simexp &")
+            print(f"   {chrome_cmd} --remote-debugging-port={port} --remote-debugging-address=0.0.0.0 --user-data-dir=~/.chrome-simexp &")
     else:
-        print("\n✓ Chrome CDP is already running on port 9222")
+        print(f"\n✓ Chrome CDP is already running on port {port}")
 
     # Show login instructions
     print("\n📝 IMPORTANT - Complete Setup:")
@@ -389,6 +479,39 @@ def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None
     """
     # Resolve CDP URL using priority chain (Issue #11)
     resolved_cdp = get_cdp_url(cdp_url)
+
+    # Auto-launch Chrome if not running (Issue #38)
+    port = extract_port_from_url(resolved_cdp)
+
+    if not check_chrome_cdp_running(port):
+        print(f"⚠️  Chrome CDP is not running on port {port}")
+        print()
+        response = input(f"Would you like to launch Chrome now? (y/n): ").strip().lower()
+
+        if response == 'y' or response == 'yes':
+            print()
+            print("🚀 Launching Chrome with network-wide CDP access...")
+
+            if launch_chrome_cdp(port=port, bind_address='0.0.0.0'):
+                print("✅ Chrome launched successfully!")
+                print()
+                print("📋 Next steps:")
+                print("  1. Go to https://app.simplenote.com in the Chrome window")
+                print("  2. Login to Simplenote")
+                print("  3. Press Enter to continue session creation")
+                print()
+                input("Press Enter when ready...")
+            else:
+                print("❌ Failed to launch Chrome")
+                print()
+                print(f"Please launch Chrome manually on port {port} and try again.")
+                return
+        else:
+            print()
+            print(f"❌ Chrome is required for session creation")
+            print(f"Please launch Chrome on port {port} and try again:")
+            print(f"  simexp browser launch --port {port} --network")
+            return
 
     current_dir = os.getcwd()
     session_dir = os.path.join(current_dir, '.simexp')
@@ -1151,12 +1274,12 @@ def browser_test_command():
     print("=" * 62)
 
 
-def browser_launch_command(port=9222, bind_address='127.0.0.1'):
+def browser_launch_command(port=9223, bind_address='127.0.0.1'):
     """
     Launch Chrome with CDP enabled
 
     Args:
-        port: CDP port (default: 9222)
+        port: CDP port (default: 9223)
         bind_address: Network binding ('0.0.0.0' for network, '127.0.0.1' for localhost)
 
     🧵 Synth: Convenient Chrome launcher with network options
@@ -1473,7 +1596,7 @@ def main():
                     description='Launch Chrome with CDP',
                     prog='simexp browser launch')
                 parser.add_argument('--network', action='store_true', help='Enable network-wide access (0.0.0.0)')
-                parser.add_argument('--port', type=int, default=9222, help='CDP port (default: 9222)')
+                parser.add_argument('--port', type=int, default=9223, help='CDP port (default: 9223)')
 
                 args = parser.parse_args(sys.argv[3:])
                 bind_address = '0.0.0.0' if args.network else '127.0.0.1'

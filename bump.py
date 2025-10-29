@@ -5,7 +5,7 @@ from packaging.version import Version
 def get_current_version(file_path):
     with open(file_path, 'r') as file:
         content = file.read()
-        match = re.search(r'version\s*=\s*["']([^"']*)["']', content)
+        match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
         if match:
             return match.group(1)
     return None
@@ -14,8 +14,8 @@ def bump_version_file(file_path, new_version):
     try:
         with open(file_path, 'r') as file:
             content = file.read()
-        
-        content = re.sub(r'version\s*=\s*["']([^"']*)["']', f'version = "{new_version}"', content)
+
+        content = re.sub(r'version\s*=\s*["\']([^"\']+)["\']', f'version = "{new_version}"', content)
         
         with open(file_path, 'w') as file:
             file.write(content)
