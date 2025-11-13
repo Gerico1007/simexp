@@ -119,6 +119,28 @@ simexp session open                          # Open in browser
 simexp session add path/to/file --heading "Optional Heading"  # Add file content to session
 ```
 
+### ⏰ Timestamp Integration (NEW - Issue #33!)
+- **Flexible Timestamps**: Add human-readable, sortable time identifiers via `tlid` package
+- **Multiple Granularities**: Year, month, day, hour, second, millisecond precision
+- **Prepend Mode**: Insert timestamped entries at the beginning (after metadata)
+- **Configurable Defaults**: Set preferred timestamp format in config
+
+**Timestamp Commands:**
+```bash
+simexp session write "Morning pulse" --date h --prepend   # [25111307] Morning pulse
+simexp session write "Reflection" --date ms               # [251113073500123] Reflection
+simexp session write "Daily note" --date d                # [251113] Daily note
+simexp session write "Custom timestamp" --date 2511130735 # [2511130735] Custom timestamp
+```
+
+**Supported Granularities:**
+- `y` - Year (25)
+- `m` - Month (2511)
+- `d` - Day (251113)
+- `h` - Hour (25111307)
+- `s` - Second (251113073500) - default
+- `ms` - Millisecond (251113073500123)
+
 ---
 
 ## 🏗️ Project Structure
@@ -438,6 +460,7 @@ SimExp is part of the **G.Music Assembly** ecosystem:
 ## 🚀 Future Enhancements
 
 - [x] **Session-aware notes** (✅ Issue #4 - COMPLETED!)
+- [x] **Timestamp integration** (✅ Issue #33 - COMPLETED!)
 - [ ] Monitor mode (real-time change detection)
 - [ ] Bidirectional sync daemon
 - [ ] Multiple channel support
