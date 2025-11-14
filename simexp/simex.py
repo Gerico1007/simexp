@@ -528,40 +528,22 @@ def session_write_command(content=None, cdp_url=None, date_flag=None, prepend=Fa
 
             if prepend:
                 # Insert at beginning (after metadata if present)
-                # Go to beginning
-                await writer.page.keyboard.press('Control+Home')
-                await asyncio.sleep(0.3)
-
-                # Check if there's YAML frontmatter by reading first few chars
-                # If line starts with ---, navigate past metadata block
-                # For now, simple approach: look for --- lines
-                # Read current content to find metadata end
+                # Read current content
                 current_text = await editor.inner_text()
 
-                if current_text.startswith('---'):
-                    # Find second --- (end of metadata)
-                    lines = current_text.split('\n')
-                    metadata_end_line = 0
-                    found_first = False
-                    for i, line in enumerate(lines):
-                        if line.strip() == '---':
-                            if found_first:
-                                metadata_end_line = i
-                                break
-                            found_first = True
+                # Use helper function to insert after metadata
+                modified_text = insert_after_metadata(current_text, content)
 
-                    # Navigate past metadata: down arrow for each line
-                    for _ in range(metadata_end_line + 1):
-                        await writer.page.keyboard.press('ArrowDown')
-                        await asyncio.sleep(0.05)
+                # Replace entire content with modified version
+                # Select all and replace
+                await writer.page.keyboard.press('Control+Home')
+                await asyncio.sleep(0.2)
+                await writer.page.keyboard.press('Control+KeyA')  # Select all
+                await asyncio.sleep(0.2)
 
-                    # Move to end of line and add entry
-                    await writer.page.keyboard.press('End')
-                    await asyncio.sleep(0.1)
-                    await writer.page.keyboard.type(f"\n\n{content}", delay=10)
-                else:
-                    # No metadata, just prepend at beginning
-                    await writer.page.keyboard.type(f"{content}\n\n", delay=10)
+                # Type the modified content
+                await writer.page.keyboard.type(modified_text, delay=5)
+
             else:
                 # Go to end and append
                 await writer.page.keyboard.press('Control+End')
