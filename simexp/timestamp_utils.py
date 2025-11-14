@@ -165,7 +165,11 @@ def format_timestamped_entry(content, date_flag=None, prepend=False):
 
 def insert_after_metadata(note_content, entry):
     """
-    Insert entry after YAML metadata block (if present)
+    Insert entry after HTML comment metadata block (if present)
+
+    Handles both:
+    - HTML comment metadata: <!-- session_metadata ... -->
+    - Legacy YAML frontmatter: ---\\n...\\n---
 
     Args:
         note_content (str): Full note content
@@ -175,13 +179,27 @@ def insert_after_metadata(note_content, entry):
         str: Modified note content with entry inserted after metadata
 
     Example:
-        note = "---\\nsession_id: 123\\n---\\n\\nExisting content"
+        note = "<!-- session_metadata\\nsession_id: 123\\n-->\\n\\nExisting content"
         insert_after_metadata(note, "[timestamp] New entry")
-        # → "---\\nsession_id: 123\\n---\\n\\n[timestamp] New entry\\n\\nExisting content"
+        # → "<!-- session_metadata\\nsession_id: 123\\n-->\\n\\n[timestamp] New entry\\n\\nExisting content"
     """
-    lines = note_content.split('\n')
+    # Check for HTML comment metadata first (new format)
+    if note_content.strip().startswith('<!--'):
+        # Find the closing -->
+        end_marker = note_content.find('-->')
+        if end_marker != -1:
+            # Insert after the --> and any following blank lines
+            after_comment = end_marker + 3  # Length of '-->'
 
-    # Check if content starts with YAML frontmatter
+            # Skip newlines after the comment
+            while after_comment < len(note_content) and note_content[after_comment] in '\n\r':
+                after_comment += 1
+
+            # Insert the entry
+            return note_content[:after_comment] + f"{entry}\n\n" + note_content[after_comment:]
+
+    # Check for legacy YAML frontmatter (for backward compatibility)
+    lines = note_content.split('\n')
     if lines and lines[0].strip() == '---':
         # Find end of frontmatter
         end_marker_idx = None
@@ -192,7 +210,6 @@ def insert_after_metadata(note_content, entry):
 
         if end_marker_idx is not None:
             # Insert after the closing --- marker
-            # Add a blank line if not present, then the entry
             insert_idx = end_marker_idx + 1
 
             # Skip any blank lines immediately after metadata

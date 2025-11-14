@@ -531,18 +531,12 @@ def session_write_command(content=None, cdp_url=None, date_flag=None, prepend=Fa
                 # Read current content
                 current_text = await editor.inner_text()
 
-                # Use helper function to insert after metadata
+                # Use helper function to insert after metadata (handles HTML comments)
                 modified_text = insert_after_metadata(current_text, content)
 
-                # Replace entire content with modified version
-                # Select all and replace
-                await writer.page.keyboard.press('Control+Home')
-                await asyncio.sleep(0.2)
-                await writer.page.keyboard.press('Control+KeyA')  # Select all
-                await asyncio.sleep(0.2)
-
-                # Type the modified content
-                await writer.page.keyboard.type(modified_text, delay=5)
+                # Replace content using fill() - much faster than typing
+                await editor.fill(modified_text)
+                await asyncio.sleep(0.5)
 
             else:
                 # Go to end and append
