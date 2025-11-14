@@ -14,7 +14,7 @@ setup(
         'pyyaml',
         'fetcher',
         'playwright>=1.40.0',
-        'tlid>=1.0.0'
+        'tlid>=0.1.0'
     ],
     entry_points={
         'console_scripts': [

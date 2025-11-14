@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Long session notes now stay context-first with `--prepend --date`
 
 ### Dependencies
-- Added `tlid>=1.0.0` to requirements
+- Added `tlid>=0.1.0` to requirements
 
 ### Notes
 *"Time is not a line — it is a glyph. And now, it speaks in SimExp."* — ♠️ Nyro
