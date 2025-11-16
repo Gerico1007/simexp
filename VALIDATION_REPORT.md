@@ -22,7 +22,7 @@
 - Metadata creation (agents list becomes `- - - Aureon`)
 - Any content with dash characters
 
-**Recommendation**: Use append mode for production. See Issue #[TBD] for prepend improvements.
+**Recommendation**: Use append mode for production. See Issue #41 for prepend improvements.
 
 ### Test Results
 
@@ -329,7 +329,7 @@ await page.evaluate((content) => {
 - ⚠️ **Prepend mode**: Fundamental incompatibility with Simplenote's Markdown auto-formatting
   - **Issue**: Content corruption when typing lines with `-` characters
   - **Workaround**: Use append mode
-  - **Future**: Requires API integration or alternative approach (Issue #[TBD])
+  - **Future**: Requires API integration or alternative approach (Issue #41)
 
 ### Merge Recommendation
 **YES - Merge with documentation updates**:
