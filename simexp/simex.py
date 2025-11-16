@@ -1274,7 +1274,8 @@ def main():
         elif command == 'session':
             # Session command suite
             if len(sys.argv) < 3:
-                print("Usage: simexp session <subcommand>")
+                print("♠️🌿🎸🧵 SimExp Session Management")
+                print("\nUsage: simexp session <subcommand>")
                 print("\nSession Management:")
                 print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
                 print("  list                                         - List all sessions (directory tree)")
@@ -1287,13 +1288,19 @@ def main():
                 print("  add <file> [--heading <text>]                - Add file to session note")
                 print("  open                                         - Open session note in browser")
                 print("  url                                          - Print session note URL")
-                print("\nSharing & Publishing (Issue #6):")
-                print("  share <glyph|alias|group|email>              - Share with collaborator(s)")
-                print("  publish                                      - Publish note (get public URL)")
-                print("  unpublish                                    - Unpublish note (make private)")
-                print("  collab add <email>                           - Add collaborator")
+                print("\nCollaboration & Sharing (Issue #6):")
+                print("  collab <glyph|alias|group>                   - Share with Assembly (♠, 🌿, 🎸, 🧵, assembly)")
+                print("  collab add <email>                           - Add collaborator by email")
                 print("  collab remove <email>                        - Remove collaborator")
                 print("  collab list                                  - List all collaborators")
+                print("  publish                                      - Publish note (get public URL)")
+                print("  unpublish                                    - Unpublish note (make private)")
+                print("\nExamples:")
+                print("  simexp session start --ai claude --issue 42  # Start new session")
+                print("  simexp session write 'Progress update'       # Write to session")
+                print("  simexp session collab ♠                      # Share with Nyro")
+                print("  simexp session collab assembly               # Share with all Assembly")
+                print("  simexp session publish                       # Get public URL")
                 sys.exit(1)
 
             subcommand = sys.argv[2]
@@ -1391,11 +1398,20 @@ def main():
             elif subcommand == 'collab':
                 # Collaborator management subcommands
                 if len(sys.argv) < 4:
-                    print("Usage: simexp session collab <add|remove|list> [email]")
-                    print("\nSubcommands:")
-                    print("  add <email>     - Add collaborator by email")
-                    print("  remove <email>  - Remove collaborator by email")
-                    print("  list            - List all collaborators")
+                    print("♠️🌿🎸🧵 SimExp Collaboration Management")
+                    print("\nUsage: simexp session collab <subcommand|glyph|alias|group>")
+                    print("\nShare with Assembly Members:")
+                    print("  <glyph|alias|group>    - Share using glyph (♠, 🌿, 🎸, 🧵), alias, or 'assembly'")
+                    print("\nManage Collaborators:")
+                    print("  add <email>            - Add collaborator by email")
+                    print("  remove <email>         - Remove collaborator by email")
+                    print("  list                   - List all collaborators")
+                    print("\nExamples:")
+                    print("  simexp session collab ♠                      # Share with Nyro (glyph)")
+                    print("  simexp session collab nyro                   # Share with Nyro (alias)")
+                    print("  simexp session collab assembly               # Share with all Assembly")
+                    print("  simexp session collab add jerry@example.com  # Add collaborator")
+                    print("  simexp session collab list                   # List collaborators")
                     sys.exit(1)
 
                 collab_action = sys.argv[3]
@@ -1433,9 +1449,17 @@ def main():
                     session_collab_list_command(cdp_url=args.cdp_url)
 
                 else:
-                    print(f"Unknown collab action: {collab_action}")
-                    print("Run 'simexp session collab' for usage information")
-                    sys.exit(1)
+                    # Not a known subcommand - treat as glyph/alias/group sharing
+                    import argparse
+                    parser = argparse.ArgumentParser(
+                        description='Share session note with collaborator(s) using glyph/alias/group',
+                        prog='simexp session collab')
+                    parser.add_argument('identifier', help='Glyph (♠, 🌿, 🎸, 🧵), alias (nyro, aureon, jamai, synth), group (assembly), or email')
+                    parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
+
+                    # Re-parse with the identifier
+                    args = parser.parse_args(sys.argv[3:])
+                    session_share_command(args.identifier, cdp_url=args.cdp_url)
 
             elif subcommand == 'share':
                 import argparse
@@ -1456,10 +1480,19 @@ def main():
         elif command == 'browser':
             # Browser/CDP testing command suite (Issue #36 enhancement)
             if len(sys.argv) < 3:
-                print("Usage: simexp browser <subcommand>")
-                print("\nBrowser/CDP Commands:")
+                print("♠️🌿🎸🧵 SimExp Browser/CDP Management")
+                print("\nUsage: simexp browser <subcommand>")
+                print("\nBrowser/CDP Commands (Issue #36):")
                 print("  test                    - Test Chrome CDP connection and network binding")
-                print("  launch [--network]      - Launch Chrome with CDP (--network for WiFi access)")
+                print("  launch                  - Launch Chrome with CDP (localhost-only, secure)")
+                print("  launch --network        - Launch Chrome with network-wide access (WiFi)")
+                print("\nExamples:")
+                print("  simexp browser test                           # Test CDP connection")
+                print("  simexp browser launch                         # Launch Chrome (localhost)")
+                print("  simexp browser launch --network               # Launch Chrome (network-wide)")
+                print("  simexp browser launch --network --port 9223   # Custom port")
+                print("\nNetwork-wide access allows SimExp to connect from other devices on WiFi.")
+                print("Use 'simexp browser test' to verify your configuration.")
                 sys.exit(1)
 
             subcommand = sys.argv[2]
@@ -1489,34 +1522,9 @@ def main():
             print("\nCommands:")
             print("  simexp                       - Run extraction from clipboard/config")
             print("  simexp init                  - Initialize configuration")
-            print("  simexp write <url> [msg]     - Write to Simplenote note")
-            print("  simexp read <url>            - Read from Simplenote note")
-            print("  simexp session <subcommand>  - Session management")
-            print("  simexp browser <subcommand>  - Browser/CDP testing & management")
+            print("  simexp session <subcommand>  - Session management (use --help for details)")
+            print("  simexp browser <subcommand>  - Browser/CDP testing & management (use --help for details)")
             print("  simexp help                  - Show this help")
-            print("\nBrowser/CDP Commands (Issue #36):")
-            print("  simexp browser test          - Test Chrome CDP connection & network binding")
-            print("  simexp browser launch        - Launch Chrome with CDP (localhost-only)")
-            print("  simexp browser launch --network  - Launch Chrome with network-wide access")
-            print("\nSession Commands:")
-            print("  simexp session start [--ai <assistant>] [--issue <number>]")
-            print("                               - Start new session with Simplenote note")
-            print("  simexp session list          - List all sessions across directory tree")
-            print("  simexp session info          - Show current session & directory context")
-            print("  simexp session status        - Show current session info")
-            print("  simexp session clear         - Clear active session")
-            print("  simexp session write <msg>   - Write to current session's note")
-            print("  simexp session add <file>    - Add file content to session note")
-            print("  simexp session read          - Read current session's note")
-            print("  simexp session open          - Open session note in browser")
-            print("  simexp session url           - Print session note URL")
-            print("\nSharing Commands (Issue #6):")
-            print("  simexp session share <glyph|alias|group|email>  - Share with collaborator(s)")
-            print("  simexp session publish       - Publish note (get public URL)")
-            print("  simexp session unpublish     - Unpublish note (make private)")
-            print("  simexp session collab add <email>    - Add collaborator")
-            print("  simexp session collab remove <email> - Remove collaborator")
-            print("  simexp session collab list   - List all collaborators")
             print("\nChrome CDP Configuration (Issue #11):")
             print("  SimExp connects to Chrome via Chrome DevTools Protocol (CDP).")
             print("  CDP URL resolution priority:")
@@ -1528,11 +1536,7 @@ def main():
             print("  Use --cdp-url flag to override: simexp session write 'msg' --cdp-url http://server:9222")
             print("  Use env var: export SIMEXP_CDP_URL=http://192.168.1.100:9222")
             print("\nExamples:")
-            print("  # Original features:")
-            print("  simexp write https://app.simplenote.com/p/0ZqWsQ 'Hello!'")
-            print("  echo 'Message' | simexp write https://app.simplenote.com/p/0ZqWsQ")
-            print("  simexp read https://app.simplenote.com/p/0ZqWsQ")
-            print("\n  # Session-aware notes:")
+            print("  # Session-aware notes:")
             print("  simexp session start --ai claude --issue 42")
             print("  simexp session write 'Implemented feature X'")
             print("  echo 'Progress update' | simexp session write")
@@ -1542,15 +1546,14 @@ def main():
             print("  simexp init                              # Configure CDP URL during setup")
             print("  export SIMEXP_CDP_URL=http://server:9222  # Use environment variable")
             print("  simexp session start --cdp-url http://192.168.1.100:9222  # Override with flag")
-            print("\n  # Sharing & publishing:")
-            print("  simexp session share ♠️                        # Share with Nyro (glyph)")
-            print("  simexp session share nyro                     # Share with Nyro (alias)")
-            print("  simexp session share assembly                 # Share with Assembly group")
-            print("  simexp session share custom@example.com       # Share with custom email")
-            print("  simexp session publish")
-            print("  simexp session collab add jerry@example.com")
-            print("  simexp session collab list")
-            print("  simexp session unpublish")
+            print("\n  # Collaboration & sharing:")
+            print("  simexp session collab ♠                       # Share with Nyro (glyph)")
+            print("  simexp session collab nyro                    # Share with Nyro (alias)")
+            print("  simexp session collab assembly                # Share with Assembly group")
+            print("  simexp session collab add jerry@example.com   # Add collaborator by email")
+            print("  simexp session collab list                    # List collaborators")
+            print("  simexp session publish                        # Publish note (get public URL)")
+            print("  simexp session unpublish                      # Unpublish note")
 
         else:
             print(f"Unknown command: {command}")
