@@ -1305,6 +1305,37 @@ def main():
 
             subcommand = sys.argv[2]
 
+            # Handle --help and -h explicitly
+            if subcommand in ('--help', '-h', 'help'):
+                print("♠️🌿🎸🧵 SimExp Session Management")
+                print("\nUsage: simexp session <subcommand>")
+                print("\nSession Management:")
+                print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
+                print("  list                                         - List all sessions (directory tree)")
+                print("  info                                         - Show current session & directory context")
+                print("  status                                       - Show session status")
+                print("  clear                                        - Clear active session")
+                print("\nSession Content:")
+                print("  write <message>                              - Write to session note")
+                print("  read                                         - Read session note")
+                print("  add <file> [--heading <text>]                - Add file to session note")
+                print("  open                                         - Open session note in browser")
+                print("  url                                          - Print session note URL")
+                print("\nCollaboration & Sharing (Issue #6):")
+                print("  collab <glyph|alias|group>                   - Share with Assembly (♠, 🌿, 🎸, 🧵, assembly)")
+                print("  collab add <email>                           - Add collaborator by email")
+                print("  collab remove <email>                        - Remove collaborator")
+                print("  collab list                                  - List all collaborators")
+                print("  publish                                      - Publish note (get public URL)")
+                print("  unpublish                                    - Unpublish note (make private)")
+                print("\nExamples:")
+                print("  simexp session start --ai claude --issue 42  # Start new session")
+                print("  simexp session write 'Progress update'       # Write to session")
+                print("  simexp session collab ♠                      # Share with Nyro")
+                print("  simexp session collab assembly               # Share with all Assembly")
+                print("  simexp session publish                       # Get public URL")
+                sys.exit(0)
+
             if subcommand == 'start':
                 import argparse
                 parser = argparse.ArgumentParser(
@@ -1416,6 +1447,24 @@ def main():
 
                 collab_action = sys.argv[3]
 
+                # Handle --help and -h explicitly
+                if collab_action in ('--help', '-h', 'help'):
+                    print("♠️🌿🎸🧵 SimExp Collaboration Management")
+                    print("\nUsage: simexp session collab <subcommand|glyph|alias|group>")
+                    print("\nShare with Assembly Members:")
+                    print("  <glyph|alias|group>    - Share using glyph (♠, 🌿, 🎸, 🧵), alias, or 'assembly'")
+                    print("\nManage Collaborators:")
+                    print("  add <email>            - Add collaborator by email")
+                    print("  remove <email>         - Remove collaborator by email")
+                    print("  list                   - List all collaborators")
+                    print("\nExamples:")
+                    print("  simexp session collab ♠                      # Share with Nyro (glyph)")
+                    print("  simexp session collab nyro                   # Share with Nyro (alias)")
+                    print("  simexp session collab assembly               # Share with all Assembly")
+                    print("  simexp session collab add jerry@example.com  # Add collaborator")
+                    print("  simexp session collab list                   # List collaborators")
+                    sys.exit(0)
+
                 if collab_action == 'add':
                     import argparse
                     parser = argparse.ArgumentParser(
@@ -1496,6 +1545,23 @@ def main():
                 sys.exit(1)
 
             subcommand = sys.argv[2]
+
+            # Handle --help and -h explicitly
+            if subcommand in ('--help', '-h', 'help'):
+                print("♠️🌿🎸🧵 SimExp Browser/CDP Management")
+                print("\nUsage: simexp browser <subcommand>")
+                print("\nBrowser/CDP Commands (Issue #36):")
+                print("  test                    - Test Chrome CDP connection and network binding")
+                print("  launch                  - Launch Chrome with CDP (localhost-only, secure)")
+                print("  launch --network        - Launch Chrome with network-wide access (WiFi)")
+                print("\nExamples:")
+                print("  simexp browser test                           # Test CDP connection")
+                print("  simexp browser launch                         # Launch Chrome (localhost)")
+                print("  simexp browser launch --network               # Launch Chrome (network-wide)")
+                print("  simexp browser launch --network --port 9223   # Custom port")
+                print("\nNetwork-wide access allows SimExp to connect from other devices on WiFi.")
+                print("Use 'simexp browser test' to verify your configuration.")
+                sys.exit(0)
 
             if subcommand == 'test':
                 browser_test_command()
