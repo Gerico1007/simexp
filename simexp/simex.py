@@ -528,15 +528,42 @@ def session_write_command(content=None, cdp_url=None, date_flag=None, prepend=Fa
 
             if prepend:
                 # Insert at beginning (after metadata if present)
-                # Read current content
-                current_text = await editor.inner_text()
-
-                # Use helper function to insert after metadata (handles HTML comments)
-                modified_text = insert_after_metadata(current_text, content)
-
-                # Replace content using fill() - much faster than typing
-                await editor.fill(modified_text)
-                await asyncio.sleep(0.5)
+                # Try to find metadata div using Playwright selector
+                try:
+                    metadata_div = writer.page.locator('div.simexp-session-metadata')
+                    # Check if metadata div exists
+                    if await metadata_div.count() > 0:
+                        # Use JavaScript to insert text after the metadata div
+                        await metadata_div.evaluate(
+                            f'''(el) => {{
+                                const entry = "\\n\\n{content}";
+                                // Find the next text node or create one
+                                if (el.nextSibling) {{
+                                    if (el.nextSibling.nodeType === Node.TEXT_NODE) {{
+                                        el.nextSibling.textContent = entry + el.nextSibling.textContent;
+                                    }} else {{
+                                        const textNode = document.createTextNode(entry);
+                                        el.parentNode.insertBefore(textNode, el.nextSibling);
+                                    }}
+                                }} else {{
+                                    const textNode = document.createTextNode(entry);
+                                    el.parentNode.appendChild(textNode);
+                                }}
+                            }}'''
+                        )
+                        print(f"📌 Inserted after metadata div using selector")
+                    else:
+                        # No metadata div found, use fallback: go to beginning
+                        await writer.page.keyboard.press('Control+Home')
+                        await asyncio.sleep(0.2)
+                        await writer.page.keyboard.type(f"{content}\n\n", delay=10)
+                        print(f"📌 No metadata found, inserted at beginning")
+                except Exception as e:
+                    print(f"⚠️ Selector method failed: {e}, using fallback")
+                    # Fallback to beginning if selector fails
+                    await writer.page.keyboard.press('Control+Home')
+                    await asyncio.sleep(0.2)
+                    await writer.page.keyboard.type(f"{content}\n\n", delay=10)
 
             else:
                 # Go to end and append

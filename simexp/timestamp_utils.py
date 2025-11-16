@@ -165,9 +165,10 @@ def format_timestamped_entry(content, date_flag=None, prepend=False):
 
 def insert_after_metadata(note_content, entry):
     """
-    Insert entry after HTML comment metadata block (if present)
+    Insert entry after metadata block (if present)
 
-    Handles both:
+    Handles multiple formats:
+    - HTML div metadata: <div class="simexp-session-metadata" hidden>...</div>
     - HTML comment metadata: <!-- session_metadata ... -->
     - Legacy YAML frontmatter: ---\\n...\\n---
 
@@ -179,11 +180,26 @@ def insert_after_metadata(note_content, entry):
         str: Modified note content with entry inserted after metadata
 
     Example:
-        note = "<!-- session_metadata\\nsession_id: 123\\n-->\\n\\nExisting content"
+        note = '<div class="simexp-session-metadata" hidden>\\nsession_id: 123\\n</div>\\n\\nExisting'
         insert_after_metadata(note, "[timestamp] New entry")
-        # → "<!-- session_metadata\\nsession_id: 123\\n-->\\n\\n[timestamp] New entry\\n\\nExisting content"
+        # → '<div...>...</div>\\n\\n[timestamp] New entry\\n\\nExisting'
     """
-    # Check for HTML comment metadata first (new format)
+    # Check for HTML div metadata first (newest format)
+    if note_content.strip().startswith('<div'):
+        # Find the closing </div>
+        end_marker = note_content.find('</div>')
+        if end_marker != -1:
+            # Insert after the </div> and any following blank lines
+            after_div = end_marker + 6  # Length of '</div>'
+
+            # Skip newlines after the div
+            while after_div < len(note_content) and note_content[after_div] in '\n\r':
+                after_div += 1
+
+            # Insert the entry
+            return note_content[:after_div] + f"{entry}\n\n" + note_content[after_div:]
+
+    # Check for HTML comment metadata (previous format)
     if note_content.strip().startswith('<!--'):
         # Find the closing -->
         end_marker = note_content.find('-->')
