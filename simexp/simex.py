@@ -28,6 +28,7 @@ from .session_sharing import (
     share_session_note
 )
 from .session_manager import handle_session_add
+from .timestamp_utils import format_timestamped_entry, insert_after_metadata
 
 # Config file in user's home directory (not package directory)
 CONFIG_FILE = os.path.expanduser('~/.simexp/simexp.yaml')
@@ -457,13 +458,15 @@ def session_add_command(file_path: str, heading: Optional[str] = None, cdp_url: 
     # Use the existing session_write_command to append content
     session_write_command(formatted_content, cdp_url=resolved_cdp)
 
-def session_write_command(content=None, cdp_url=None):
+def session_write_command(content=None, cdp_url=None, date_flag=None, prepend=False):
     """
     Write to the current session's note using search
 
     Args:
         content: Content to write (if None, read from stdin)
         cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
+        date_flag: Timestamp granularity ('y', 'm', 'd', 'h', 's', 'ms') or manual timestamp
+        prepend: Whether to insert at beginning (after metadata) instead of appending
     """
     import sys
 
@@ -484,9 +487,16 @@ def session_write_command(content=None, cdp_url=None):
             print("❌ No content provided")
             return
 
+    # Format content with timestamp if requested
+    if date_flag:
+        content = format_timestamped_entry(content, date_flag, prepend)
+        print(f"⏰ Timestamp added: {date_flag if isinstance(date_flag, str) else 'default'}")
+
     print(f"♠️🌿🎸🧵 Writing to Session Note")
     print(f"🔮 Session: {session['session_id']}")
     print(f"📄 Content length: {len(content)} chars")
+    if prepend:
+        print(f"📌 Mode: PREPEND (after metadata)")
 
     # Execute search and write
     async def write_to_session():
@@ -516,10 +526,50 @@ def session_write_command(content=None, cdp_url=None):
             await editor.click()
             await asyncio.sleep(0.5)
 
-            # Go to end and append
-            await writer.page.keyboard.press('Control+End')
-            await asyncio.sleep(0.3)
-            await writer.page.keyboard.type(f"\n\n{content}", delay=10)  # Slow typing for reliability
+            if prepend:
+                # Insert at beginning (after metadata if present)
+                # Try to find metadata div using Playwright selector
+                try:
+                    metadata_div = writer.page.locator('div.simexp-session-metadata')
+                    # Check if metadata div exists
+                    if await metadata_div.count() > 0:
+                        # Use JavaScript to insert text after the metadata div
+                        await metadata_div.evaluate(
+                            f'''(el) => {{
+                                const entry = "\\n\\n{content}";
+                                // Find the next text node or create one
+                                if (el.nextSibling) {{
+                                    if (el.nextSibling.nodeType === Node.TEXT_NODE) {{
+                                        el.nextSibling.textContent = entry + el.nextSibling.textContent;
+                                    }} else {{
+                                        const textNode = document.createTextNode(entry);
+                                        el.parentNode.insertBefore(textNode, el.nextSibling);
+                                    }}
+                                }} else {{
+                                    const textNode = document.createTextNode(entry);
+                                    el.parentNode.appendChild(textNode);
+                                }}
+                            }}'''
+                        )
+                        print(f"📌 Inserted after metadata div using selector")
+                    else:
+                        # No metadata div found, use fallback: go to beginning
+                        await writer.page.keyboard.press('Control+Home')
+                        await asyncio.sleep(0.2)
+                        await writer.page.keyboard.type(f"{content}\n\n", delay=10)
+                        print(f"📌 No metadata found, inserted at beginning")
+                except Exception as e:
+                    print(f"⚠️ Selector method failed: {e}, using fallback")
+                    # Fallback to beginning if selector fails
+                    await writer.page.keyboard.press('Control+Home')
+                    await asyncio.sleep(0.2)
+                    await writer.page.keyboard.type(f"{content}\n\n", delay=10)
+
+            else:
+                # Go to end and append
+                await writer.page.keyboard.press('Control+End')
+                await asyncio.sleep(0.3)
+                await writer.page.keyboard.type(f"\n\n{content}", delay=10)  # Slow typing for reliability
 
             # Wait longer for Simplenote autosave (critical!)
             print(f"⏳ Waiting for Simplenote to autosave...")
@@ -1317,9 +1367,14 @@ def main():
                     prog='simexp session write')
                 parser.add_argument('content', nargs='?', help='Content to write (optional, reads from stdin if not provided)')
                 parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
+                parser.add_argument('--date', nargs='?', const=True, default=None,
+                                    help='Add timestamp prefix. Optional granularity: y, m, d, h, s (default), ms. Or provide manual timestamp.')
+                parser.add_argument('--prepend', action='store_true',
+                                    help='Insert at beginning (after metadata) instead of appending')
 
                 args = parser.parse_args(sys.argv[3:])
-                session_write_command(content=args.content, cdp_url=args.cdp_url)
+                session_write_command(content=args.content, cdp_url=args.cdp_url,
+                                      date_flag=args.date, prepend=args.prepend)
 
             elif subcommand == 'read':
                 import argparse
@@ -1505,7 +1560,7 @@ def main():
             print("  simexp session info          - Show current session & directory context")
             print("  simexp session status        - Show current session info")
             print("  simexp session clear         - Clear active session")
-            print("  simexp session write <msg>   - Write to current session's note")
+            print("  simexp session write <msg>   - Write to current session's note (--date, --prepend)")
             print("  simexp session add <file>    - Add file content to session note")
             print("  simexp session read          - Read current session's note")
             print("  simexp session open          - Open session note in browser")
@@ -1536,6 +1591,8 @@ def main():
             print("  simexp session start --ai claude --issue 42")
             print("  simexp session write 'Implemented feature X'")
             print("  echo 'Progress update' | simexp session write")
+            print("  simexp session write 'Morning pulse' --date h --prepend  # Timestamped prepend")
+            print("  simexp session write 'Quick note' --date ms              # Millisecond timestamp")
             print("  simexp session status")
             print("  simexp session open")
             print("\n  # Multi-network CDP (Issue #11):")

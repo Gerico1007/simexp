@@ -137,7 +137,7 @@ class SessionState:
             os.remove(self.state_file)
 
 
-def generate_yaml_header(
+def generate_html_metadata(
     session_id: str,
     ai_assistant: str = 'claude',
     agents: List[str] = None,
@@ -145,7 +145,15 @@ def generate_yaml_header(
     pr_number: Optional[int] = None
 ) -> str:
     """
-    Generate YAML metadata header for session note
+    Generate HTML tag metadata header for session note
+
+    Uses hidden <div> tag for invisible, navigable metadata storage.
+    This approach:
+    - Keeps metadata invisible with 'hidden' attribute
+    - Prevents live-editor formatting corruption
+    - Enables easy Playwright selector navigation
+    - Maintains searchability (session_id still in text content)
+    - Provides cleaner user experience
 
     Args:
         session_id: Unique session UUID
@@ -155,7 +163,7 @@ def generate_yaml_header(
         pr_number: GitHub PR number (if applicable)
 
     Returns:
-        YAML-formatted metadata header as string
+        Hidden div with YAML metadata as string
     """
     if agents is None:
         agents = ['Jerry', 'Aureon', 'Nyro', 'JamAI', 'Synth']
@@ -170,7 +178,8 @@ def generate_yaml_header(
     }
 
     yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
-    return f"---\n{yaml_content}---\n\n"
+    # Use hidden div with class for easy selector navigation
+    return f'<div class="simexp-session-metadata" hidden>\n{yaml_content}</div>\n\n'
 
 
 async def create_session_note(
@@ -250,8 +259,8 @@ async def create_session_note(
         await asyncio.sleep(2)
         await writer.page.wait_for_load_state('networkidle')
 
-        # Generate YAML metadata header
-        yaml_header = generate_yaml_header(
+        # Generate HTML tag metadata header
+        metadata_header = generate_html_metadata(
             session_id=session_id,
             ai_assistant=ai_assistant,
             issue_number=issue_number
@@ -266,8 +275,8 @@ async def create_session_note(
         await editor.click()
         await asyncio.sleep(0.5)
 
-        # Type the YAML metadata directly
-        await writer.page.keyboard.type(yaml_header, delay=0)
+        # Type the HTML tag metadata directly
+        await writer.page.keyboard.type(metadata_header, delay=0)
         await asyncio.sleep(1)  # Wait for autosave
 
         print(f"✅ Metadata written to new note")

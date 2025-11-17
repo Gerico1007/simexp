@@ -119,6 +119,154 @@ simexp session open                          # Open in browser
 simexp session add path/to/file --heading "Optional Heading"  # Add file content to session
 ```
 
+### ⏰ Timestamp Integration (NEW - Issue #33!)
+- **Flexible Timestamps**: Add human-readable, sortable time identifiers via `tlid` package
+- **Multiple Granularities**: Year, month, day, hour, second, millisecond precision
+- **Prepend Mode**: Insert timestamped entries at the beginning (after metadata)
+- **Append Mode**: Add timestamped entries at the end (default)
+- **Stdin Support**: Type content interactively or pipe from other commands
+- **Configurable Defaults**: Set preferred timestamp format in `~/.simexp/simexp.yaml`
+
+#### 📝 Basic Usage
+
+**Method 1: Inline Content (Quick)**
+```bash
+# Provide content directly in the command
+simexp session write "Your message here" --date s
+```
+
+**Method 2: Interactive (Stdin)**
+```bash
+# Type content interactively
+simexp session write --date h
+# Type your message (can be multiple lines)
+# Press Ctrl+D when finished
+```
+
+**Method 3: Pipe from Other Commands**
+```bash
+# Pipe output from another command
+git log -1 --oneline | simexp session write --date s
+echo "Task completed at $(date)" | simexp session write --date h
+cat progress.txt | simexp session write --date d --prepend
+```
+
+#### 🎯 Timestamp Granularities
+
+Each granularity creates a different timestamp format (YYMMDD... format):
+
+| Flag | Granularity | Format | Example Output | Use Case |
+|------|-------------|--------|----------------|----------|
+| `y` | Year | YY | `[25] Entry` | Annual notes |
+| `m` | Month | YYMM | `[2511] Entry` | Monthly logs |
+| `d` | Day | YYMMDD | `[251115] Entry` | Daily journaling |
+| `h` | Hour | YYMMDDHH | `[25111520] Entry` | Hourly updates |
+| `s` | Second | YYMMDDHHMMSS | `[251115202625] Entry` | Default, precise logs |
+| `ms` | Millisecond | YYMMDDHHMMSSmmm | `[251115202625123] Entry` | High-precision events |
+
+**Manual Timestamp:**
+```bash
+# Provide your own timestamp (any numeric string)
+simexp session write "Meeting notes" --date 2511151500
+# Output: [2511151500] Meeting notes
+```
+
+#### 📍 Prepend vs Append
+
+**Append Mode (Default)**: Adds entry to the **end** of the note
+```bash
+simexp session write "Completed task X" --date s
+# Entry appears at the bottom of your note
+```
+
+**Prepend Mode**: Inserts entry at the **beginning** (after metadata)
+```bash
+simexp session write "URGENT: Critical update" --date h --prepend
+# Entry appears right after the --- metadata block
+```
+
+**Example Note Structure:**
+```yaml
+---
+session_id: abc-123
+ai_assistant: claude
+---
+
+[25111520] 🔥 URGENT: Critical update (prepended)
+
+[251115123456] Old entry from earlier
+[251115202625] Completed task X (appended most recently)
+```
+
+#### 💡 Real-World Examples
+
+**Development Workflow:**
+```bash
+# Morning standup
+simexp session write "Starting work on feature X" --date h --prepend
+
+# Log progress throughout the day
+git commit -m "Fix bug #123" && \
+  simexp session write "Fixed bug #123 - auth issue" --date s
+
+# End of day summary
+simexp session write "EOD: 3 commits, 2 PRs reviewed" --date h
+```
+
+**Quick Logging:**
+```bash
+# No timestamp (quick note)
+simexp session write "Remember to update docs"
+
+# With hour timestamp
+simexp session write "Meeting with team" --date h
+
+# Millisecond precision for events
+simexp session write "API response time: 245ms" --date ms
+```
+
+**Multi-line Content:**
+```bash
+simexp session write --date d --prepend
+Daily Summary:
+- Completed 3 tasks
+- 2 bugs fixed
+- Code review done
+<Press Ctrl+D>
+```
+
+#### ⚙️ Configuration
+
+Set your default timestamp granularity in `~/.simexp/simexp.yaml`:
+
+```yaml
+default_date_format: h  # hour granularity as default
+```
+
+Then you can use `--date` without a value:
+```bash
+simexp session write "Uses default granularity" --date
+# Will use 'h' (hour) format from config
+```
+
+#### 🔧 Timestamp Format Details
+
+Timestamps follow the **TLID format** (Time-based Lexicographically-sortable Identifier):
+- **Human-readable**: Easy to parse visually (YYMMDDHHMMSS)
+- **Sortable**: Chronological order when sorted alphabetically
+- **Compact**: No separators, minimal characters
+- **Universal**: Works in any system, no timezone issues
+
+**Sorting Example:**
+```
+[251115] Day entry
+[25111512] Hour entry (noon)
+[25111520] Hour entry (8 PM)
+[251115202625] Second-precise entry
+[251115202625123] Millisecond-precise entry
+```
+All entries sort correctly in chronological order!
+
 ---
 
 ## 🏗️ Project Structure
@@ -397,6 +545,30 @@ Using old code without keyboard simulation - update `playwright_writer.py` to la
 
 Not logged into Simplenote - open Chrome window and login at https://app.simplenote.com
 
+### Timestamp Issues
+
+**Problem: "Reading content from stdin..."**
+- This means the command is waiting for you to type content
+- **Solution**: Either type your message and press `Ctrl+D`, or cancel (`Ctrl+C`) and provide content inline:
+  ```bash
+  simexp session write "Your message" --date h
+  ```
+
+**Problem: Prepend not inserting after metadata**
+- Ensure your session note has metadata (created with `simexp session start`)
+- Old notes may use different metadata formats
+- **Solution**: Prepend works with both YAML (`---`) and HTML comment (`<!--`) metadata
+
+**Problem: Timestamps not appearing**
+- Check that `tlid` package is installed: `pip list | grep tlid`
+- **Solution**: Install if missing: `pip install tlid`
+- Fallback mode uses datetime if tlid unavailable
+
+**Problem: How to exit stdin mode?**
+- Press `Ctrl+D` to finish typing (Unix/Linux/Mac)
+- Press `Ctrl+Z` then Enter on Windows
+- Or cancel with `Ctrl+C` and use inline content instead
+
 **👉 See [Full Troubleshooting Guide](README_CROSS_DEVICE_FLUIDITY.md#troubleshooting)**
 
 ---
@@ -438,6 +610,7 @@ SimExp is part of the **G.Music Assembly** ecosystem:
 ## 🚀 Future Enhancements
 
 - [x] **Session-aware notes** (✅ Issue #4 - COMPLETED!)
+- [x] **Timestamp integration** (✅ Issue #33 - COMPLETED!)
 - [ ] Monitor mode (real-time change detection)
 - [ ] Bidirectional sync daemon
 - [ ] Multiple channel support
@@ -509,8 +682,8 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
 
 ---
 
-**Version**: 0.3.1
-**Last Updated**: October 9, 2025
+**Version**: 0.3.12
+**Last Updated**: November 15, 2025
 **Status**: ✅ Production Ready
 
-**Latest**: Session-Aware Notes (Issue #4) - Track terminal sessions in Simplenote!
+**Latest**: Timestamp Integration (Issue #33) - Flexible, sortable timestamps with prepend/append modes!
