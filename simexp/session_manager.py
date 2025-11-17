@@ -9,13 +9,134 @@ import os
 import json
 import uuid
 import asyncio
+import re
 from datetime import datetime
 from typing import Optional, Dict, List
 from pathlib import Path
 import yaml
+import pyperclip
 
 from .playwright_writer import SimplenoteWriter, write_to_note
 from .session_file_handler import SessionFileHandler
+
+
+def extract_uuid_from_simplenote_link(internal_link: str) -> Optional[str]:
+    """
+    Extract UUID from Simplenote internal link
+
+    Args:
+        internal_link (str): Link in format 'simplenote://note/{UUID}'
+
+    Returns:
+        str: UUID if found, None otherwise
+
+    Example:
+        extract_uuid_from_simplenote_link('simplenote://note/776d81cc-dabe-4b64-a068-f72e830474fb')
+        → '776d81cc-dabe-4b64-a068-f72e830474fb'
+    """
+    # Match UUID pattern at the end of simplenote link
+    match = re.search(r'simplenote://note/([a-f0-9\-]+)$', internal_link)
+    if match:
+        return match.group(1)
+    return None
+
+
+async def extract_simplenote_uuid_from_note(writer) -> Optional[str]:
+    """
+    Extract UUID from newly created Simplenote note by copying internal link
+
+    This function:
+    1. Finds the menu button (⋯) in the note
+    2. Clicks it to open the context menu
+    3. Clicks "Copy Internal Link"
+    4. Extracts UUID from clipboard
+
+    Args:
+        writer: SimplenoteWriter instance with open page
+
+    Returns:
+        str: UUID extracted from internal link, or None if extraction fails
+    """
+    try:
+        import time
+
+        print(f"🔗 Extracting Simplenote internal link UUID...")
+
+        # Wait for the menu button to be available
+        # Try different selectors for the menu button
+        menu_selectors = [
+            'button[aria-label*="Actions"]',  # Common label for menu
+            'button[title*="Actions"]',
+            '.note-actions-menu button',
+            'button[aria-label*="menu"]',
+            '[data-action="menu"]',
+            '.toolbar button:last-child',
+        ]
+
+        menu_clicked = False
+        for selector in menu_selectors:
+            try:
+                menu_button = await writer.page.wait_for_selector(selector, timeout=2000)
+                if menu_button:
+                    await menu_button.click()
+                    menu_clicked = True
+                    print(f"✅ Clicked menu button: {selector}")
+                    break
+            except:
+                continue
+
+        if not menu_clicked:
+            print(f"⚠️ Could not find menu button, falling back to random UUID")
+            return None
+
+        # Wait for menu to appear
+        await asyncio.sleep(0.5)
+
+        # Click "Copy Internal Link" - try multiple text patterns
+        copy_link_selectors = [
+            'text=Copy Internal Link',
+            'button:has-text("Copy Internal Link")',
+            '[data-action="copy-link"]',
+        ]
+
+        link_copied = False
+        for selector in copy_link_selectors:
+            try:
+                copy_button = await writer.page.wait_for_selector(selector, timeout=2000)
+                if copy_button:
+                    await copy_button.click()
+                    link_copied = True
+                    print(f"✅ Clicked 'Copy Internal Link': {selector}")
+                    break
+            except:
+                continue
+
+        if not link_copied:
+            print(f"⚠️ Could not find 'Copy Internal Link' button")
+            return None
+
+        # Wait for clipboard to be populated
+        await asyncio.sleep(0.3)
+
+        # Read clipboard
+        try:
+            clipboard_content = pyperclip.paste()
+            uuid = extract_uuid_from_simplenote_link(clipboard_content)
+
+            if uuid:
+                print(f"✅ Extracted UUID from Simplenote: {uuid}")
+                return uuid
+            else:
+                print(f"⚠️ Could not extract UUID from clipboard: {clipboard_content}")
+                return None
+        except Exception as e:
+            print(f"⚠️ Clipboard read failed: {e}")
+            return None
+
+    except Exception as e:
+        print(f"⚠️ Failed to extract Simplenote UUID: {e}")
+        return None
+
 
 async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None) -> None:
     """
@@ -142,7 +263,8 @@ def generate_yaml_header(
     ai_assistant: str = 'claude',
     agents: List[str] = None,
     issue_number: Optional[int] = None,
-    pr_number: Optional[int] = None
+    pr_number: Optional[int] = None,
+    simplenote_link: Optional[str] = None
 ) -> str:
     """
     Generate YAML metadata header for session note
@@ -153,6 +275,7 @@ def generate_yaml_header(
         agents: List of agent names (defaults to Assembly agents)
         issue_number: GitHub issue number being worked on
         pr_number: GitHub PR number (if applicable)
+        simplenote_link: Direct link to note in Simplenote app (simplenote://note/{UUID})
 
     Returns:
         YAML-formatted metadata header as string
@@ -162,6 +285,7 @@ def generate_yaml_header(
 
     metadata = {
         'session_id': session_id,
+        'simplenote_link': simplenote_link,
         'ai_assistant': ai_assistant,
         'agents': agents,
         'issue_number': issue_number,
@@ -199,14 +323,14 @@ async def create_session_note(
     Returns:
         Dictionary with session info (session_id, note_url, etc.)
     """
-    # Generate session ID
-    session_id = str(uuid.uuid4())
-
     print(f"♠️🌿🎸🧵 Creating Session Note")
-    print(f"🔮 Session ID: {session_id}")
     print(f"🤝 AI Assistant: {ai_assistant}")
     if issue_number:
         print(f"🎯 Issue: #{issue_number}")
+
+    # Will be extracted from Simplenote's internal link
+    session_id = None
+    simplenote_link = None
 
     # Connect to Simplenote and create new note
     # ⚡ FIX: Direct metadata write to avoid navigation bug
@@ -250,11 +374,26 @@ async def create_session_note(
         await asyncio.sleep(2)
         await writer.page.wait_for_load_state('networkidle')
 
+        # Extract UUID from Simplenote's internal link (Issue #43)
+        extracted_uuid = await extract_simplenote_uuid_from_note(writer)
+
+        if extracted_uuid:
+            session_id = extracted_uuid
+            simplenote_link = f"simplenote://note/{extracted_uuid}"
+            print(f"🔮 Session ID: {session_id}")
+        else:
+            # Fallback to random UUID if extraction fails
+            print(f"⚠️ Falling back to random UUID generation...")
+            session_id = str(uuid.uuid4())
+            simplenote_link = f"simplenote://note/{session_id}"
+            print(f"🔮 Session ID: {session_id}")
+
         # Generate YAML metadata header
         yaml_header = generate_yaml_header(
             session_id=session_id,
             ai_assistant=ai_assistant,
-            issue_number=issue_number
+            issue_number=issue_number,
+            simplenote_link=simplenote_link
         )
 
         # ⚡ FIX: Write metadata DIRECTLY to the new note (already focused!)
@@ -275,9 +414,11 @@ async def create_session_note(
     # Save session state
     # ⚡ FIX: Use session_id as search key, not note_url
     # 🧵 Enhancement (Issue #36): Store CDP endpoint for cross-device coordination
+    # ♠️ Enhancement (Issue #43): Use Simplenote's internal link UUID for direct note access
     session_data = {
         'session_id': session_id,
         'search_key': session_id,  # Use session_id to find the note via search
+        'simplenote_link': simplenote_link,  # Direct link to open note in Simplenote app
         'ai_assistant': ai_assistant,
         'issue_number': issue_number,
         'cdp_endpoint': cdp_url,  # Store CDP URL for network-wide access
