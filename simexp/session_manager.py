@@ -300,16 +300,7 @@ def generate_yaml_header(
     }
 
     yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
-
-    # Create header with both YAML metadata AND plain-text session_id for searchability
-    # Simplenote's search needs plain text, YAML comments might not be indexed
-    header = f"""---
-{yaml_content}---
-
-🔮 SESSION ID: {session_id}
-
-"""
-    return header
+    return f"---\n{yaml_content}---\n\n"
 
 
 async def create_session_note(
