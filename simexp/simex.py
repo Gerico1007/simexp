@@ -693,7 +693,7 @@ def session_list_command():
         is_active = session.get('_is_active', False)
 
         print(f"📁 {session_dir}/session.json")
-        print(f"   🔮 Session: {session['session_id'][:16]}...")
+        print(f"   🔮 Session: {session['session_id']}")
         print(f"   🤝 AI: {session.get('ai_assistant', 'unknown')}")
         if session.get('issue_number'):
             print(f"   🎯 Issue: #{session['issue_number']}")
