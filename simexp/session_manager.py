@@ -383,6 +383,10 @@ async def create_session_note(
         # Extract UUID from Simplenote's internal link (Issue #43)
         extracted_uuid = await extract_simplenote_uuid_from_note(writer)
 
+        # CRITICAL: Close any open menus by pressing Escape
+        await writer.page.keyboard.press('Escape')
+        await asyncio.sleep(0.5)
+
         if extracted_uuid:
             session_id = extracted_uuid
             simplenote_link = f"simplenote://note/{extracted_uuid}"
@@ -402,15 +406,19 @@ async def create_session_note(
             simplenote_link=simplenote_link
         )
 
-        # ⚡ FIX: Write metadata DIRECTLY to the new note (already focused!)
-        # Don't use writer.write_content() - it would navigate and select wrong note
+        # ⚡ FIX: Write metadata DIRECTLY to the new note
+        # After menu interaction, we need to refocus the editor
         print(f"📝 Writing metadata directly to new note...")
-        print(f"   Session ID (searchable): {session_id}")
+        print(f"   Session ID: {session_id}")
 
-        # Find the editor element
+        # Find and click the editor to refocus it after menu interaction
         editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
         await editor.click()
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.3)
+
+        # Move cursor to beginning and ensure clean state
+        await writer.page.keyboard.press('Control+Home')
+        await asyncio.sleep(0.2)
 
         # Type the YAML metadata directly
         await writer.page.keyboard.type(yaml_header, delay=0)
