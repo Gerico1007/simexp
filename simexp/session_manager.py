@@ -25,17 +25,23 @@ def extract_uuid_from_simplenote_link(internal_link: str) -> Optional[str]:
     Extract UUID from Simplenote internal link
 
     Args:
-        internal_link (str): Link in format 'simplenote://note/{UUID}'
+        internal_link (str): Link in multiple formats:
+            - Direct URL: 'simplenote://note/{UUID}'
+            - Markdown link: '[text](simplenote://note/{UUID})'
 
     Returns:
         str: UUID if found, None otherwise
 
-    Example:
+    Examples:
         extract_uuid_from_simplenote_link('simplenote://note/776d81cc-dabe-4b64-a068-f72e830474fb')
         → '776d81cc-dabe-4b64-a068-f72e830474fb'
+
+        extract_uuid_from_simplenote_link('[New Note](simplenote://note/776d81cc-dabe-4b64-a068-f72e830474fb)')
+        → '776d81cc-dabe-4b64-a068-f72e830474fb'
     """
-    # Match UUID pattern at the end of simplenote link
-    match = re.search(r'simplenote://note/([a-f0-9\-]+)$', internal_link)
+    # Match UUID in simplenote:// URL (handles both direct URL and Markdown link formats)
+    # Pattern: simplenote://note/{UUID} where UUID is hexadecimal with hyphens
+    match = re.search(r'simplenote://note/([a-f0-9\-]+)', internal_link)
     if match:
         return match.group(1)
     return None
