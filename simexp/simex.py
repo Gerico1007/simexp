@@ -668,35 +668,6 @@ def session_url_command():
     print(f"💡 Use this in Simplenote search to find your session note")
 
 
-def session_status_command():
-    """Show current session status"""
-    import sys
-    from .session_manager import get_session_directory
-
-    # Get active session
-    session = get_active_session()
-    if not session:
-        print("❌ No active session")
-        print("💡 Run 'simexp session start' to create a new session")
-        sys.exit(1)
-
-    session_dir = session.get('_session_dir', get_session_directory())
-    current_dir = os.getcwd()
-
-    print(f"♠️🌿🎸🧵 Active Session Status")
-    print()
-    print(f"📁 Session file: {session_dir}/session.json" if session_dir else "📁 Session file: Unknown")
-    print(f"🔮 Session ID: {session['session_id']}")
-    print(f"🔑 Search Key: {session['search_key']}")
-    print(f"🤝 AI Assistant: {session['ai_assistant']}")
-    if session.get('issue_number'):
-        print(f"🎯 Issue: #{session['issue_number']}")
-    print(f"📅 Created: {session['created_at']}")
-    print()
-    print(f"📍 Current directory: {current_dir}")
-    print(f"💡 Run 'simexp session info' for more details")
-
-
 def session_clear_command():
     """Clear the current session"""
     clear_active_session()
@@ -1233,7 +1204,6 @@ def main():
                 print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
                 print("  list                                         - List all sessions (directory tree)")
                 print("  info                                         - Show current session & directory context")
-                print("  status                                       - Show session status")
                 print("  clear                                        - Clear active session")
                 print("\nSession Content:")
                 print("  write <message>                              - Write to session note")
@@ -1264,7 +1234,6 @@ def main():
                 print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
                 print("  list                                         - List all sessions (directory tree)")
                 print("  info                                         - Show current session & directory context")
-                print("  status                                       - Show session status")
                 print("  clear                                        - Clear active session")
                 print("\nSession Content:")
                 print("  write <message>                              - Write to session note")
@@ -1330,9 +1299,6 @@ def main():
 
             elif subcommand == 'url':
                 session_url_command()
-
-            elif subcommand == 'status':
-                session_status_command()
 
             elif subcommand == 'clear':
                 session_clear_command()
