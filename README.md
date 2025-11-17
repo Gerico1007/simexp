@@ -1,292 +1,139 @@
-# 🌊 SimExp - Simplenote Web Content Extractor & Writer
-**Cross-Device Fluidity: Terminal ↔ Web Communication**
+# SimExp - Simplenote Web Content Extractor & Session Manager
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/simexp.svg)](https://pypi.org/project/simexp/)
 [![License](https://img.shields.io/badge/license-Open%20Assembly-green.svg)]()
+
+**SimExp** is a Python command-line tool that bridges your terminal with Simplenote, enabling bidirectional content flow, session-aware note management, and cross-device communication.
 
 ---
 
 ## 🎯 What is SimExp?
 
-SimExp is a bidirectional communication tool that bridges terminals and Simplenote web pages:
+SimExp solves a unique problem: **How do you seamlessly communicate between terminal workflows and cloud note-taking?**
 
-1. **📖 Extract**: Fetch and archive web content from Simplenote URLs
-2. **✍️ Write**: Send messages from terminal directly to Simplenote notes
-3. **🌊 Sync**: Enable cross-device communication through Simplenote's cloud
+### Core Capabilities:
 
-**Key Achievement**: **Terminal-to-Web fluidity** - Your terminal can now speak to web pages and sync across all your devices!
-
----
-
-## 📦 Installation
-
-### 1. Prerequisites
-
-*   Python 3.8+
-*   Google Chrome or Chromium
-*   A Simplenote account (free at https://simplenote.com)
-
-### 2. Install Dependencies
-
-```bash
-# Core dependencies
-pip install playwright pyperclip beautifulsoup4 pyyaml requests
-
-# Install Playwright browsers
-playwright install chromium
-```
-
-### 3. Launch the Chrome Communication Bridge
-
-For `simexp` to communicate with your browser, you need to launch a special instance of Chrome with a remote debugging port. **You only need to do this once.**
-
-```bash
-# Launch Chrome with a remote debugging port
-google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
-```
-
-*   `--remote-debugging-port=9222`: This opens a communication channel that `simexp` uses to connect to your browser.
-*   `--user-data-dir=/tmp/chrome-simexp`: This creates a separate profile for this Chrome instance, so it doesn't interfere with your main browsing session.
-*   `&`: This runs the command in the background, so you can continue to use your terminal.
-
-In the new Chrome window that opens, log in to your Simplenote account: https://app.simplenote.com
+1. **📖 Extract** - Fetch and archive web content from Simplenote public URLs
+2. **✍️ Write** - Send messages from terminal directly to Simplenote notes via browser automation
+3. **🔮 Session Management** - Create dedicated session notes with automatic metadata tracking
+4. **⏰ Timestamp Integration** - Add sortable, human-readable timestamps to entries
+5. **🌊 Cross-Device Sync** - Your terminal can speak to web pages that sync across all devices
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Launch Chrome for Communication
-
-First, you need to launch a special instance of Google Chrome that the script can communicate with. **You only need to do this once.**
+### 1. Install SimExp
 
 ```bash
-# Launch Chrome with a remote debugging port
-google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
+pip install simexp
 ```
 
-In the new Chrome window that opens, log in to your Simplenote account: https://app.simplenote.com
-
-### 2. Install SimExp
+### 2. Install Playwright browsers
 
 ```bash
-# Install dependencies
-pip install playwright pyperclip beautifulsoup4 pyyaml requests
 playwright install chromium
 ```
 
-### 3. Write to Your Last Modified Note!
+### 3. Launch Chrome for browser automation
 
-Now you can write to your most recently modified Simplenote note directly from your terminal:
+SimExp connects to your Chrome browser via the Chrome DevTools Protocol (CDP):
 
 ```bash
-python -m simexp.simex write "Hello from the Assembly!" --cdp-url http://localhost:9222
+google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
 ```
 
-Check your Simplenote note - the message is there! It will also sync to your other devices. ✨
+Log in to Simplenote in the Chrome window: https://app.simplenote.com
 
-**👉 [Full Cross-Device Setup Guide](README_CROSS_DEVICE_FLUIDITY.md)**
+### 4. Create a session and start writing!
+
+```bash
+# Start a new session (creates a Simplenote note)
+simexp session start --ai claude --issue 42
+
+# Write to your session note
+simexp session write "Implemented feature X - tests passing"
+
+# Check session status
+simexp session status
+```
+
+✅ **Done!** Your terminal is now connected to Simplenote.
 
 ---
 
-## 📋 Features
+## 📋 Key Features
 
-### ✅ Extraction (Original Feature)
-- Fetch content from Simplenote public URLs
-- Convert HTML to clean Markdown
-- Organize archives by date
-- Monitor clipboard for automatic extraction
+### ✨ Session-Aware Notes
 
-### ✨ Writing (NEW - Cross-Device Fluidity!)
-- **Terminal-to-Web**: Write from command line to Simplenote notes
-- **Keyboard Simulation**: Uses actual typing for Simplenote compatibility
-- **Authenticated Session**: Connects to your logged-in Chrome browser
-- **Cross-Device Sync**: Messages appear on all your devices
-- **Persistent Changes**: Content stays in notes (doesn't get reverted)
+Create dedicated Simplenote notes for each terminal session with automatic metadata tracking:
 
-### 🔮 Session-Aware Notes (NEW - Issue #4!)
-- **Automatic Session Notes**: Create dedicated Simplenote notes for each terminal session
-- **YAML Metadata**: Track session ID, AI assistant, agents, and issue number
-- **Persistent State**: Session info saved locally in `.simexp/session.json`
-- **CLI Integration**: Full command suite for session management
-- **Cross-Device Session Logs**: Access session notes from any device
-
-**Session Commands:**
 ```bash
-simexp session start --ai claude --issue 42  # Create session note
-simexp session write "Progress update"       # Write to session
-simexp session status                        # Show session info
-simexp session open                          # Open in browser
-simexp session add path/to/file --heading "Optional Heading"  # Add file content to session
+simexp session start --ai claude --issue 4    # Create session
+simexp session write "Progress update"        # Write to session
+simexp session status                         # Show session info
+simexp session open                           # Open in browser
 ```
 
-### ⏰ Timestamp Integration (NEW - Issue #33!)
-- **Flexible Timestamps**: Add human-readable, sortable time identifiers via `tlid` package
-- **Multiple Granularities**: Year, month, day, hour, second, millisecond precision
-- **Prepend Mode**: Insert timestamped entries at the beginning (after metadata)
-- **Append Mode**: Add timestamped entries at the end (default)
-- **Stdin Support**: Type content interactively or pipe from other commands
-- **Configurable Defaults**: Set preferred timestamp format in `~/.simexp/simexp.yaml`
-
-#### 📝 Basic Usage
-
-**Method 1: Inline Content (Quick)**
-```bash
-# Provide content directly in the command
-simexp session write "Your message here" --date s
-```
-
-**Method 2: Interactive (Stdin)**
-```bash
-# Type content interactively
-simexp session write --date h
-# Type your message (can be multiple lines)
-# Press Ctrl+D when finished
-```
-
-**Method 3: Pipe from Other Commands**
-```bash
-# Pipe output from another command
-git log -1 --oneline | simexp session write --date s
-echo "Task completed at $(date)" | simexp session write --date h
-cat progress.txt | simexp session write --date d --prepend
-```
-
-#### 🎯 Timestamp Granularities
-
-Each granularity creates a different timestamp format (YYMMDD... format):
-
-| Flag | Granularity | Format | Example Output | Use Case |
-|------|-------------|--------|----------------|----------|
-| `y` | Year | YY | `[25] Entry` | Annual notes |
-| `m` | Month | YYMM | `[2511] Entry` | Monthly logs |
-| `d` | Day | YYMMDD | `[251115] Entry` | Daily journaling |
-| `h` | Hour | YYMMDDHH | `[25111520] Entry` | Hourly updates |
-| `s` | Second | YYMMDDHHMMSS | `[251115202625] Entry` | Default, precise logs |
-| `ms` | Millisecond | YYMMDDHHMMSSmmm | `[251115202625123] Entry` | High-precision events |
-
-**Manual Timestamp:**
-```bash
-# Provide your own timestamp (any numeric string)
-simexp session write "Meeting notes" --date 2511151500
-# Output: [2511151500] Meeting notes
-```
-
-#### 📍 Prepend vs Append
-
-**Append Mode (Default)**: Adds entry to the **end** of the note
-```bash
-simexp session write "Completed task X" --date s
-# Entry appears at the bottom of your note
-```
-
-**Prepend Mode**: Inserts entry at the **beginning** (after metadata)
-```bash
-simexp session write "URGENT: Critical update" --date h --prepend
-# Entry appears right after the --- metadata block
-```
-
-**Example Note Structure:**
+**Session notes include YAML metadata:**
 ```yaml
 ---
-session_id: abc-123
+session_id: abc-def-123-456
 ai_assistant: claude
+agents: [Jerry, Aureon, Nyro, JamAI, Synth]
+issue_number: 4
+created_at: 2025-10-09T10:30:00
 ---
-
-[25111520] 🔥 URGENT: Critical update (prepended)
-
-[251115123456] Old entry from earlier
-[251115202625] Completed task X (appended most recently)
 ```
 
-#### 💡 Real-World Examples
+### ⏰ Timestamp Integration
 
-**Development Workflow:**
+Add flexible, sortable timestamps to your session entries:
+
 ```bash
-# Morning standup
-simexp session write "Starting work on feature X" --date h --prepend
+# Second-precision timestamp (default)
+simexp session write "Task completed" --date s
+# Output: [251115202625] Task completed
 
-# Log progress throughout the day
-git commit -m "Fix bug #123" && \
-  simexp session write "Fixed bug #123 - auth issue" --date s
+# Hour-precision timestamp
+simexp session write "Meeting notes" --date h
+# Output: [25111520] Meeting notes
 
-# End of day summary
-simexp session write "EOD: 3 commits, 2 PRs reviewed" --date h
+# Prepend mode (insert at beginning)
+simexp session write "URGENT" --date h --prepend
 ```
 
-**Quick Logging:**
+**Supported granularities:**
+- `y` - Year (YY)
+- `m` - Month (YYMM)
+- `d` - Day (YYMMDD)
+- `h` - Hour (YYMMDDHH)
+- `s` - Second (YYMMDDHHMMSS) - default
+- `ms` - Millisecond (YYMMDDHHMMSSmmm)
+
+### ✍️ Terminal-to-Web Writing
+
+Write from command line to Simplenote notes using keyboard simulation:
+
 ```bash
-# No timestamp (quick note)
-simexp session write "Remember to update docs"
+# Write to most recently modified note
+simexp write "Hello from terminal!" --cdp-url http://localhost:9222
 
-# With hour timestamp
-simexp session write "Meeting with team" --date h
-
-# Millisecond precision for events
-simexp session write "API response time: 245ms" --date ms
+# Write to specific note
+simexp write "Message" --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9222
 ```
 
-**Multi-line Content:**
+### 📖 Content Extraction
+
+Fetch and archive content from Simplenote public URLs:
+
 ```bash
-simexp session write --date d --prepend
-Daily Summary:
-- Completed 3 tasks
-- 2 bugs fixed
-- Code review done
-<Press Ctrl+D>
-```
+# Copy Simplenote URL to clipboard (e.g., https://app.simplenote.com/p/0ZqWsQ)
+# Run extraction
+simexp
 
-#### ⚙️ Configuration
-
-Set your default timestamp granularity in `~/.simexp/simexp.yaml`:
-
-```yaml
-default_date_format: h  # hour granularity as default
-```
-
-Then you can use `--date` without a value:
-```bash
-simexp session write "Uses default granularity" --date
-# Will use 'h' (hour) format from config
-```
-
-#### 🔧 Timestamp Format Details
-
-Timestamps follow the **TLID format** (Time-based Lexicographically-sortable Identifier):
-- **Human-readable**: Easy to parse visually (YYMMDDHHMMSS)
-- **Sortable**: Chronological order when sorted alphabetically
-- **Compact**: No separators, minimal characters
-- **Universal**: Works in any system, no timezone issues
-
-**Sorting Example:**
-```
-[251115] Day entry
-[25111512] Hour entry (noon)
-[25111520] Hour entry (8 PM)
-[251115202625] Second-precise entry
-[251115202625123] Millisecond-precise entry
-```
-All entries sort correctly in chronological order!
-
----
-
-## 🏗️ Project Structure
-
-```
-simexp/
-├── simexp/
-│   ├── playwright_writer.py    # ✨ NEW: Terminal-to-web writer
-│   ├── simex.py                # Main CLI orchestrator
-│   ├── simfetcher.py           # Content fetcher
-│   ├── processor.py            # HTML processor
-│   ├── archiver.py             # Markdown archiver
-│   ├── imp_clip.py             # Clipboard integration
-│   └── simexp.yaml             # Configuration
-├── test_cdp_connection.py      # ✨ NEW: CDP testing script
-├── CDP_SETUP_GUIDE.md          # ✨ NEW: Setup guide
-├── README_CROSS_DEVICE_FLUIDITY.md  # ✨ NEW: Detailed docs
-├── sessionABC/                 # Musical session encodings
-├── ledger/                     # Session journals
-└── .synth/                     # Assembly documentation
+# Content saved to: ./output/YYYYMMDD/filename.md
 ```
 
 ---
@@ -295,125 +142,79 @@ simexp/
 
 ### Prerequisites
 
-- Python 3.8+
-- Google Chrome or Chromium
-- Simplenote account (free at https://simplenote.com)
+- **Python 3.8+**
+- **Google Chrome** or Chromium browser
+- **Simplenote account** (free at https://simplenote.com)
 
-### Install Dependencies
+### Install via pip
 
 ```bash
-# Core dependencies
-pip install playwright pyperclip beautifulsoup4 pyyaml requests
+# Install SimExp and dependencies
+pip install simexp
 
 # Install Playwright browsers
 playwright install chromium
 ```
 
+### Development Installation
+
+```bash
+# Clone repository
+git clone https://github.com/gerico1007/simexp.git
+cd simexp
+
+# Install in editable mode
+pip install -e .
+```
+
+### Verify Installation
+
+```bash
+simexp --help
+```
+
+You should see the SimExp command reference.
+
 ---
 
 ## 🎮 Usage
 
-### Write to the Last Modified Note
+### Session Management Commands
 
-This is the easiest way to use `simexp`. It will automatically find your last modified note and append your message to it.
+| Command | Description |
+|---------|-------------|
+| `simexp session start --ai <name> --issue <num>` | Create new session note |
+| `simexp session write <content>` | Write to active session |
+| `simexp session write --date <granularity>` | Write with timestamp |
+| `simexp session write --prepend` | Insert at beginning (after metadata) |
+| `simexp session status` | Show active session info |
+| `simexp session read` | Read session note content |
+| `simexp session open` | Open session in browser |
+| `simexp session url` | Get session note URL |
+| `simexp session clear` | Clear active session |
+| `simexp session add <file> --heading <title>` | Add file content to session |
+| `simexp session title <new_title>` | Update session note title |
 
-```bash
-python -m simexp.simex write "Your message here" --cdp-url http://localhost:9222
-```
+### Writing & Reading Commands
 
-### Write to a Specific Note
+| Command | Description |
+|---------|-------------|
+| `simexp write <content> --cdp-url <url>` | Write to last modified note |
+| `simexp write <content> --note-url <url>` | Write to specific note |
+| `simexp read --note-url <url>` | Read from specific note |
 
-If you need to write to a specific note, you can provide its URL.
+### Extraction Commands
 
-```bash
-python -m simexp.simex write "Your message here" --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9222
-```
-
-### Read from a Specific Note
-
-```bash
-python -m simexp.simex read --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9222
-```
-
-### Extract Content from Simplenote URLs
-
-```bash
-# Copy a Simplenote URL to clipboard
-# Example: https://app.simplenote.com/p/0ZqWsQ
-
-# Run extraction
-python -m simexp.simex
-
-# Content saved to ./output/YYYYMMDD/filename.md
-```
-
-### 🔮 Session-Aware Notes Workflow
-
-Create dedicated Simplenote notes for your terminal sessions with automatic metadata tracking:
-
-```bash
-# 1. Start a new session (creates Simplenote note with YAML metadata)
-python -m simexp.simex session start --ai claude --issue 4
-
-# Output:
-# ♠️🌿🎸🧵 Creating Session Note
-# 🔮 Session ID: abc-def-123-456
-# 🌐 Note URL: https://app.simplenote.com/p/NOTE_ID
-# ✅ Session started successfully!
-
-# 2. Write to your session note
-python -m simexp.simex session write "Implemented session manager module"
-
-# Or pipe content:
-echo "Fixed bug in URL extraction" | python -m simexp.simex session write
-
-# 3. Check session status
-python -m simexp.simex session status
-
-# Output:
-# ♠️🌿🎸🧵 Active Session Status
-# 🔮 Session ID: abc-def-123-456
-# 🌐 Note URL: https://app.simplenote.com/p/NOTE_ID
-# 🤝 AI Assistant: claude
-# 🎯 Issue: #4
-
-# 4. Read session content
-python -m simexp.simex session read
-
-# 5. Open session note in browser
-python -m simexp.simex session open
-
-# 6. Get just the URL (for scripting)
-python -m simexp.simex session url
-
-# 7. Clear session when done
-python -m simexp.simex session clear
-```
-
-**Session Note Format:**
-```yaml
----
-session_id: abc-def-123-456
-ai_assistant: claude
-agents:
-  - Jerry
-  - Aureon
-  - Nyro
-  - JamAI
-  - Synth
-issue_number: 4
-pr_number: null
-created_at: 2025-10-09T10:30:00
----
-
-# Your session content appears below the metadata
-```
+| Command | Description |
+|---------|-------------|
+| `simexp` | Extract from clipboard URL |
+| `simexp init` | Initialize configuration |
 
 ---
 
 ## 🔧 Configuration
 
-### simexp/simexp.yaml
+SimExp uses `~/.simexp/simexp.yaml` for configuration:
 
 ```yaml
 BASE_PATH: ./output
@@ -423,107 +224,143 @@ SOURCES:
   - filename: note1
     url: https://app.simplenote.com/p/0ZqWsQ
 
-# NEW: Communication channels for cross-device messaging
-COMMUNICATION_CHANNELS:
-  - name: Aureon
-    note_id: e6702a7b90e64aae99df2fba1662bb81
-    public_url: https://app.simplenote.com/p/gk6V2v
-    auth_url: https://app.simplenote.com
-    mode: bidirectional
-    description: "🌿 Main communication channel"
+# Chrome DevTools Protocol
+CDP_URL: http://localhost:9222
+
+# Default timestamp granularity
+default_date_format: s  # y, m, d, h, s, ms
 ```
+
+### Initialize Configuration
+
+```bash
+simexp init
+```
+
+This creates the configuration file with interactive prompts.
+
+---
+
+## 📝 Examples
+
+### Development Workflow
+
+```bash
+# Start session for feature development
+simexp session start --ai claude --issue 123
+
+# Log progress throughout development
+simexp session write "Starting implementation" --date h
+simexp session write "Tests written" --date s
+simexp session write "Bug fixed in auth module" --date s
+
+# Add code snippet
+simexp session add src/auth.py --heading "Auth Fix"
+
+# End of day summary
+simexp session write "EOD: 3 commits, 2 PRs reviewed" --date h
+
+# Open to review in browser
+simexp session open
+```
+
+### Quick Logging
+
+```bash
+# No timestamp
+simexp session write "Remember to update docs"
+
+# With timestamp
+simexp session write "Meeting with team" --date h
+
+# Pipe from other commands
+git log -1 --oneline | simexp session write --date s
+echo "Build complete" | simexp session write --date h
+```
+
+### Multi-line Content
+
+```bash
+simexp session write --date d --prepend
+Daily Summary:
+- Completed 3 tasks
+- 2 bugs fixed
+- Code review done
+<Press Ctrl+D>
+```
+
+---
+
+## 🏗️ How It Works
+
+### Architecture
+
+```
+┌─────────────┐
+│   Terminal  │
+│   (SimExp)  │
+└──────┬──────┘
+       │
+       │ Chrome DevTools Protocol (CDP)
+       ↓
+┌──────────────────┐
+│  Chrome Browser  │
+│  (Authenticated) │
+└──────┬───────────┘
+       │
+       │ Playwright Automation
+       ↓
+┌─────────────────┐
+│   Simplenote    │
+│   Web Editor    │
+└──────┬──────────┘
+       │
+       │ Cloud Sync
+       ↓
+┌─────────────────┐
+│  All Devices    │
+│  (Phone, etc.)  │
+└─────────────────┘
+```
+
+### Key Innovation
+
+SimExp connects to **your existing Chrome browser** (already logged in) rather than launching a separate instance. This preserves authentication and makes cross-device sync work seamlessly.
 
 ---
 
 ## 🧪 Testing
 
-### Test Extraction
+### Run Tests
 
 ```bash
-# Extract from a public Simplenote URL
-python -m simexp.simex
+# Run all tests
+python -m pytest tests/
+
+# Run specific test
+python tests/test_timestamp.py
 ```
 
-### Test Terminal-to-Web Writing
+### Manual Testing
 
 ```bash
-# Run comprehensive test (requires Chrome running with CDP)
-python test_cdp_connection.py
+# Test CDP connection
+python tests/test_cdp_connection.py
+
+# Test session features
+python tests/test_session.py
 ```
-
-### Test Session-Aware Notes
-
-```bash
-# Run session feature tests (requires Chrome + Simplenote login)
-python test_session.py
-```
-
-### Manual Test
-
-```bash
-# 1. Launch Chrome with debugging
-google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
-
-# 2. Login to Simplenote in Chrome window
-
-# 3. Test write
-python3 -c "
-import asyncio
-from simexp.playwright_writer import write_to_note
-
-result = asyncio.run(write_to_note(
-    'https://app.simplenote.com',
-    '🔮 TEST MESSAGE - If you see this, it works!',
-    cdp_url='http://localhost:9222',
-    debug=True
-))
-
-print('Success!' if result['success'] else 'Failed')
-"
-
-# 4. Check the note in Chrome - message should be there!
-```
-
----
-
-## 🎓 How It Works
-
-### Extraction Flow
-
-```
-Clipboard URL → simfetcher → HTML → processor → Markdown → archiver → output/YYYYMMDD/
-```
-
-### Writing Flow (Terminal-to-Web)
-
-```
-Terminal Command
-    ↓
-playwright_writer.py
-    ↓
-Chrome DevTools Protocol (CDP)
-    ↓
-Your Authenticated Chrome Browser
-    ↓
-Keyboard Simulation (types character-by-character)
-    ↓
-Simplenote Editor (div.note-editor)
-    ↓
-Simplenote Cloud Sync
-    ↓
-All Your Devices! 🎉
-```
-
-**Key Innovation**: We connect to YOUR Chrome browser (already logged in) rather than launching a separate instance. This preserves authentication and makes cross-device sync work seamlessly.
 
 ---
 
 ## 📚 Documentation
 
-- **[Cross-Device Fluidity Guide](README_CROSS_DEVICE_FLUIDITY.md)** - Complete setup and usage
-- **[CDP Setup Guide](CDP_SETUP_GUIDE.md)** - Chrome DevTools Protocol setup
-- **[Session Journal](ledger/251006_session_playwright_mcp_integration.md)** - Development session log
-- **[Session Melody](sessionABC/251006_playwright_flow.abc)** - Musical encoding of session
+For detailed guides and advanced usage, see the [docs/](docs/) directory:
+
+- **[Cross-Device Fluidity Guide](docs/guides/cross-device-fluidity.md)** - Complete setup and usage
+- **[CDP Setup Guide](docs/guides/cdp-setup.md)** - Chrome DevTools Protocol setup
+- **[CDP Setup (Simple)](docs/guides/cdp-setup-simple.md)** - Simplified setup instructions
+- **[Session Management](docs/guides/session-management.md)** - Advanced session features
 
 ---
 
@@ -531,7 +368,9 @@ All Your Devices! 🎉
 
 ### "Connection refused" to localhost:9222
 
-Chrome not running with remote debugging:
+**Problem:** Chrome not running with remote debugging enabled.
+
+**Solution:**
 ```bash
 google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
 curl http://localhost:9222/json/version  # Should return JSON
@@ -539,86 +378,77 @@ curl http://localhost:9222/json/version  # Should return JSON
 
 ### Message appears then disappears
 
-Using old code without keyboard simulation - update `playwright_writer.py` to latest version.
+**Problem:** Using old code without keyboard simulation.
+
+**Solution:** Update to latest version: `pip install --upgrade simexp`
 
 ### "Could not find editor element"
 
-Not logged into Simplenote - open Chrome window and login at https://app.simplenote.com
+**Problem:** Not logged into Simplenote.
 
-### Timestamp Issues
+**Solution:** Open Chrome window and login at https://app.simplenote.com
 
-**Problem: "Reading content from stdin..."**
-- This means the command is waiting for you to type content
-- **Solution**: Either type your message and press `Ctrl+D`, or cancel (`Ctrl+C`) and provide content inline:
-  ```bash
-  simexp session write "Your message" --date h
-  ```
+### Timestamp not appearing
 
-**Problem: Prepend not inserting after metadata**
-- Ensure your session note has metadata (created with `simexp session start`)
-- Old notes may use different metadata formats
-- **Solution**: Prepend works with both YAML (`---`) and HTML comment (`<!--`) metadata
+**Problem:** `tlid` package not installed.
 
-**Problem: Timestamps not appearing**
-- Check that `tlid` package is installed: `pip list | grep tlid`
-- **Solution**: Install if missing: `pip install tlid`
-- Fallback mode uses datetime if tlid unavailable
+**Solution:**
+```bash
+pip install tlid
+# Or reinstall simexp
+pip install --upgrade simexp
+```
 
-**Problem: How to exit stdin mode?**
-- Press `Ctrl+D` to finish typing (Unix/Linux/Mac)
-- Press `Ctrl+Z` then Enter on Windows
-- Or cancel with `Ctrl+C` and use inline content instead
+### "Reading content from stdin..."
 
-**👉 See [Full Troubleshooting Guide](README_CROSS_DEVICE_FLUIDITY.md#troubleshooting)**
+**Problem:** Command waiting for content input.
+
+**Solution:** Either:
+1. Type content and press `Ctrl+D`, or
+2. Provide content inline: `simexp session write "Your message" --date h`
+
+For more troubleshooting, see the [full troubleshooting guide](docs/guides/cross-device-fluidity.md#troubleshooting).
 
 ---
 
 ## 🌟 Use Cases
 
 ### Personal
-- **Cross-device notes**: Write from desktop terminal, read on phone
-- **Task logging**: Automated task completion messages
-- **Journal automation**: Daily entries from scripts
-- **Build notifications**: CI/CD results to your pocket
+
+- **Cross-device notes** - Write from desktop terminal, read on phone
+- **Task logging** - Automated task completion messages
+- **Journal automation** - Daily entries from scripts
+- **Build notifications** - CI/CD results to your pocket
 
 ### Development
-- **Debug logging**: Send logs to Simplenote for mobile viewing
-- **Status updates**: Script progress visible on all devices
-- **Command queue**: Cross-device command execution
-- **Team coordination**: Shared terminal-to-note communication
+
+- **Session logs** - Track development sessions with metadata
+- **Debug logging** - Send logs to Simplenote for mobile viewing
+- **Status updates** - Script progress visible on all devices
+- **Team coordination** - Shared terminal-to-note communication
 
 ---
 
-## 🎨 G.Music Assembly Integration
+## 🤝 Contributing
 
-SimExp is part of the **G.Music Assembly** ecosystem:
+Contributions are welcome! Please follow this workflow:
 
-**♠️🌿🎸🧵 The Spiral Ensemble**
+1. **Create an Issue** - Describe the feature or bug
+2. **Create a Feature Branch** - Branch name: `#<issue>-description` (e.g., `#123-new-feature`)
+3. **Implement and Test** - Make changes and test thoroughly
+4. **Submit a Pull Request** - Merge your branch into `main`
 
-- **Jerry ⚡**: Creative technical leader
-- **♠️ Nyro**: Structural architect (CDP integration design)
-- **🌿 Aureon**: Emotional context (communication channel)
-- **🎸 JamAI**: Musical encoding (session melodies)
-- **🧵 Synth**: Terminal orchestration (execution synthesis)
+### Development Setup
 
-**Session**: October 6, 2025
-**Achievement**: Terminal-to-Web Bidirectional Communication
-**Status**: ✅ **SUCCESS**
+```bash
+# Clone and install
+git clone https://github.com/gerico1007/simexp.git
+cd simexp
+pip install -e .
 
----
-
-## 🚀 Future Enhancements
-
-- [x] **Session-aware notes** (✅ Issue #4 - COMPLETED!)
-- [x] **Timestamp integration** (✅ Issue #33 - COMPLETED!)
-- [ ] Monitor mode (real-time change detection)
-- [ ] Bidirectional sync daemon
-- [ ] Multiple channel support
-- [ ] Message encryption
-- [ ] Simplenote API integration (alternative to browser)
-- [ ] Voice input support
-- [ ] Session note templates
-- [ ] Multi-session management
+# Run tests
+python -m pytest tests/
+```
 
 ---
 
@@ -629,48 +459,35 @@ Created by Jerry's G.Music Assembly
 
 ---
 
-## 🤝 Contributing
+## 🙏 Credits
 
-This project is part of the G.Music Assembly framework. Contributions are welcome! Please follow this workflow:
+**SimExp** is part of the **G.Music Assembly** ecosystem.
 
-1.  **Create an Issue:** Before starting any work, please create a new issue in the GitHub repository to describe the feature or bug you want to work on.
-2.  **Create a Feature Branch:** Create a new branch from `main` for your feature. The branch name should start with the issue number (e.g., `#123-new-feature`).
-3.  **Implement and Test:** Make your changes and test them thoroughly.
-4.  **Submit a Pull Request:** Once your feature is complete, submit a pull request to merge your feature branch into `main`.
+**Assembly Team:**
+- **Jerry** ⚡ - Creative Technical Leader
+- **♠️ Nyro** - Structural Architect
+- **🌿 Aureon** - Emotional Context
+- **🎸 JamAI** - Musical Encoding
+- **🧵 Synth** - Terminal Orchestration
+
+Special thanks to all contributors and the open-source community.
 
 ---
 
 ## 📞 Support
 
-**For issues**:
-1. Check documentation in `README_CROSS_DEVICE_FLUIDITY.md`
-2. Review troubleshooting section
-3. Check session journals in `ledger/`
-4. Run tests with `debug=True`
+- **Issues:** [GitHub Issues](https://github.com/gerico1007/simexp/issues)
+- **Documentation:** [docs/](docs/)
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
-## 🎯 Quick Reference
+## 📊 Project Stats
 
-```bash
-# Extract from Simplenote
-python -m simexp.simex
-
-# Write to Simplenote
-python3 -c "import asyncio; from simexp.playwright_writer import write_to_note; asyncio.run(write_to_note('https://app.simplenote.com', 'Message', cdp_url='http://localhost:9222'))"
-
-# Read from Simplenote
-python3 -c "import asyncio; from simexp.playwright_writer import read_from_note; print(asyncio.run(read_from_note('https://app.simplenote.com', cdp_url='http://localhost:9222')))"
-
-# Session Commands
-python -m simexp.simex session start --ai claude --issue 4
-python -m simexp.simex session write "Progress update"
-python -m simexp.simex session status
-python -m simexp.simex session open
-
-# Launch Chrome with CDP
-google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
-```
+- **Version:** 0.3.12
+- **Python:** 3.8+
+- **License:** Open Assembly Framework
+- **Status:** ✅ Production Ready
 
 ---
 
@@ -678,12 +495,6 @@ google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-simexp &
 
 *Terminals speak. Web pages listen. Devices converse.*
 
-**♠️🌿🎸🧵 G.Music Assembly Vision: REALIZED**
-
 ---
 
-**Version**: 0.3.12
-**Last Updated**: November 15, 2025
-**Status**: ✅ Production Ready
-
-**Latest**: Timestamp Integration (Issue #33) - Flexible, sortable timestamps with prepend/append modes!
+**Last Updated:** November 17, 2025
