@@ -21,9 +21,7 @@ from .session_manager import (
 )
 from .session_sharing import (
     publish_session_note,
-    unpublish_session_note,
     add_session_collaborator,
-    remove_session_collaborator,
     list_session_collaborators,
     share_session_note
 )
@@ -810,28 +808,6 @@ def session_publish_command(cdp_url=None):
         print(f"💡 Check Simplenote UI for the public URL")
 
 
-def session_unpublish_command(cdp_url=None):
-    """Unpublish the current session's note"""
-    import sys
-
-    # Resolve CDP URL using priority chain (Issue #11)
-    resolved_cdp = get_cdp_url(cdp_url)
-
-    session = get_active_session()
-    if not session:
-        print("❌ No active session. Run 'simexp session start' first.")
-        sys.exit(1)
-
-    print(f"♠️🌿🎸🧵 Unpublishing Session Note")
-    print(f"🔮 Session: {session['session_id']}")
-
-    success = asyncio.run(unpublish_session_note(cdp_url=resolved_cdp))
-
-    if success:
-        print(f"\n✅ Note unpublished successfully!")
-    else:
-        print(f"\n❌ Unpublish failed")
-
 
 def session_collab_add_command(email, cdp_url=None):
     """Add a collaborator to the current session's note"""
@@ -856,29 +832,6 @@ def session_collab_add_command(email, cdp_url=None):
     else:
         print(f"\n❌ Failed to add collaborator")
 
-
-def session_collab_remove_command(email, cdp_url=None):
-    """Remove a collaborator from the current session's note"""
-    import sys
-
-    # Resolve CDP URL using priority chain (Issue #11)
-    resolved_cdp = get_cdp_url(cdp_url)
-
-    session = get_active_session()
-    if not session:
-        print("❌ No active session. Run 'simexp session start' first.")
-        sys.exit(1)
-
-    print(f"♠️🌿🎸🧵 Removing Collaborator from Session Note")
-    print(f"🔮 Session: {session['session_id']}")
-    print(f"👤 Collaborator: {email}")
-
-    success = asyncio.run(remove_session_collaborator(email, cdp_url=resolved_cdp))
-
-    if success:
-        print(f"\n✅ Collaborator removed successfully!")
-    else:
-        print(f"\n❌ Failed to remove collaborator")
 
 
 def session_collab_list_command(cdp_url=None):
@@ -1291,10 +1244,8 @@ def main():
                 print("\nCollaboration & Sharing (Issue #6):")
                 print("  collab <glyph|alias|group>                   - Share with Assembly (♠, 🌿, 🎸, 🧵, assembly)")
                 print("  collab add <email>                           - Add collaborator by email")
-                print("  collab remove <email>                        - Remove collaborator")
                 print("  collab list                                  - List all collaborators")
                 print("  publish                                      - Publish note (get public URL)")
-                print("  unpublish                                    - Unpublish note (make private)")
                 print("\nExamples:")
                 print("  simexp session start --ai claude --issue 42  # Start new session")
                 print("  simexp session write 'Progress update'       # Write to session")
@@ -1324,10 +1275,8 @@ def main():
                 print("\nCollaboration & Sharing (Issue #6):")
                 print("  collab <glyph|alias|group>                   - Share with Assembly (♠, 🌿, 🎸, 🧵, assembly)")
                 print("  collab add <email>                           - Add collaborator by email")
-                print("  collab remove <email>                        - Remove collaborator")
                 print("  collab list                                  - List all collaborators")
                 print("  publish                                      - Publish note (get public URL)")
-                print("  unpublish                                    - Unpublish note (make private)")
                 print("\nExamples:")
                 print("  simexp session start --ai claude --issue 42  # Start new session")
                 print("  simexp session write 'Progress update'       # Write to session")
@@ -1416,16 +1365,6 @@ def main():
                 args = parser.parse_args(sys.argv[3:])
                 session_publish_command(cdp_url=args.cdp_url)
 
-            elif subcommand == 'unpublish':
-                import argparse
-                parser = argparse.ArgumentParser(
-                    description='Unpublish session note',
-                    prog='simexp session unpublish')
-                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
-
-                args = parser.parse_args(sys.argv[3:])
-                session_unpublish_command(cdp_url=args.cdp_url)
-
             elif subcommand == 'collab':
                 # Collaborator management subcommands
                 if len(sys.argv) < 4:
@@ -1435,7 +1374,6 @@ def main():
                     print("  <glyph|alias|group>    - Share using glyph (♠, 🌿, 🎸, 🧵), alias, or 'assembly'")
                     print("\nManage Collaborators:")
                     print("  add <email>            - Add collaborator by email")
-                    print("  remove <email>         - Remove collaborator by email")
                     print("  list                   - List all collaborators")
                     print("\nExamples:")
                     print("  simexp session collab ♠                      # Share with Nyro (glyph)")
@@ -1455,7 +1393,6 @@ def main():
                     print("  <glyph|alias|group>    - Share using glyph (♠, 🌿, 🎸, 🧵), alias, or 'assembly'")
                     print("\nManage Collaborators:")
                     print("  add <email>            - Add collaborator by email")
-                    print("  remove <email>         - Remove collaborator by email")
                     print("  list                   - List all collaborators")
                     print("\nExamples:")
                     print("  simexp session collab ♠                      # Share with Nyro (glyph)")
@@ -1475,17 +1412,6 @@ def main():
 
                     args = parser.parse_args(sys.argv[4:])
                     session_collab_add_command(args.email, cdp_url=args.cdp_url)
-
-                elif collab_action == 'remove':
-                    import argparse
-                    parser = argparse.ArgumentParser(
-                        description='Remove collaborator',
-                        prog='simexp session collab remove')
-                    parser.add_argument('email', help='Collaborator email address')
-                    parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
-
-                    args = parser.parse_args(sys.argv[4:])
-                    session_collab_remove_command(args.email, cdp_url=args.cdp_url)
 
                 elif collab_action == 'list':
                     import argparse
