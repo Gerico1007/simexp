@@ -21,11 +21,14 @@ from .session_manager import (
 )
 from .session_sharing import (
     publish_session_note,
+    unpublish_session_note,
     add_session_collaborator,
+    remove_session_collaborator,
     list_session_collaborators,
     share_session_note
 )
 from .session_manager import handle_session_add
+from .timestamp_utils import format_timestamped_entry, insert_after_metadata
 
 # Config file in user's home directory (not package directory)
 CONFIG_FILE = os.path.expanduser('~/.simexp/simexp.yaml')
@@ -455,13 +458,15 @@ def session_add_command(file_path: str, heading: Optional[str] = None, cdp_url: 
     # Use the existing session_write_command to append content
     session_write_command(formatted_content, cdp_url=resolved_cdp)
 
-def session_write_command(content=None, cdp_url=None):
+def session_write_command(content=None, cdp_url=None, date_flag=None, prepend=False):
     """
     Write to the current session's note using search
 
     Args:
         content: Content to write (if None, read from stdin)
         cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
+        date_flag: Timestamp granularity ('y', 'm', 'd', 'h', 's', 'ms') or manual timestamp
+        prepend: Whether to insert at beginning (after metadata) instead of appending
     """
     import sys
 
@@ -482,9 +487,16 @@ def session_write_command(content=None, cdp_url=None):
             print("❌ No content provided")
             return
 
+    # Format content with timestamp if requested
+    if date_flag:
+        content = format_timestamped_entry(content, date_flag, prepend)
+        print(f"⏰ Timestamp added: {date_flag if isinstance(date_flag, str) else 'default'}")
+
     print(f"♠️🌿🎸🧵 Writing to Session Note")
     print(f"🔮 Session: {session['session_id']}")
     print(f"📄 Content length: {len(content)} chars")
+    if prepend:
+        print(f"📌 Mode: PREPEND (after metadata)")
 
     # Execute search and write
     async def write_to_session():
@@ -514,10 +526,50 @@ def session_write_command(content=None, cdp_url=None):
             await editor.click()
             await asyncio.sleep(0.5)
 
-            # Go to end and append
-            await writer.page.keyboard.press('Control+End')
-            await asyncio.sleep(0.3)
-            await writer.page.keyboard.type(f"\n\n{content}", delay=10)  # Slow typing for reliability
+            if prepend:
+                # Insert at beginning (after metadata if present)
+                # Try to find metadata div using Playwright selector
+                try:
+                    metadata_div = writer.page.locator('div.simexp-session-metadata')
+                    # Check if metadata div exists
+                    if await metadata_div.count() > 0:
+                        # Use JavaScript to insert text after the metadata div
+                        await metadata_div.evaluate(
+                            f'''(el) => {{
+                                const entry = "\\n\\n{content}";
+                                // Find the next text node or create one
+                                if (el.nextSibling) {{
+                                    if (el.nextSibling.nodeType === Node.TEXT_NODE) {{
+                                        el.nextSibling.textContent = entry + el.nextSibling.textContent;
+                                    }} else {{
+                                        const textNode = document.createTextNode(entry);
+                                        el.parentNode.insertBefore(textNode, el.nextSibling);
+                                    }}
+                                }} else {{
+                                    const textNode = document.createTextNode(entry);
+                                    el.parentNode.appendChild(textNode);
+                                }}
+                            }}'''
+                        )
+                        print(f"📌 Inserted after metadata div using selector")
+                    else:
+                        # No metadata div found, use fallback: go to beginning
+                        await writer.page.keyboard.press('Control+Home')
+                        await asyncio.sleep(0.2)
+                        await writer.page.keyboard.type(f"{content}\n\n", delay=10)
+                        print(f"📌 No metadata found, inserted at beginning")
+                except Exception as e:
+                    print(f"⚠️ Selector method failed: {e}, using fallback")
+                    # Fallback to beginning if selector fails
+                    await writer.page.keyboard.press('Control+Home')
+                    await asyncio.sleep(0.2)
+                    await writer.page.keyboard.type(f"{content}\n\n", delay=10)
+
+            else:
+                # Go to end and append
+                await writer.page.keyboard.press('Control+End')
+                await asyncio.sleep(0.3)
+                await writer.page.keyboard.type(f"\n\n{content}", delay=10)  # Slow typing for reliability
 
             # Wait longer for Simplenote autosave (critical!)
             print(f"⏳ Waiting for Simplenote to autosave...")
@@ -668,23 +720,39 @@ def session_url_command():
     print(f"💡 Use this in Simplenote search to find your session note")
 
 
+def session_status_command():
+    """Show current session status"""
+    import sys
+    from .session_manager import get_session_directory
+
+    # Get active session
+    session = get_active_session()
+    if not session:
+        print("❌ No active session")
+        print("💡 Run 'simexp session start' to create a new session")
+        sys.exit(1)
+
+    session_dir = session.get('_session_dir', get_session_directory())
+    current_dir = os.getcwd()
+
+    print(f"♠️🌿🎸🧵 Active Session Status")
+    print()
+    print(f"📁 Session file: {session_dir}/session.json" if session_dir else "📁 Session file: Unknown")
+    print(f"🔮 Session ID: {session['session_id']}")
+    print(f"🔑 Search Key: {session['search_key']}")
+    print(f"🤝 AI Assistant: {session['ai_assistant']}")
+    if session.get('issue_number'):
+        print(f"🎯 Issue: #{session['issue_number']}")
+    print(f"📅 Created: {session['created_at']}")
+    print()
+    print(f"📍 Current directory: {current_dir}")
+    print(f"💡 Run 'simexp session info' for more details")
+
+
 def session_clear_command():
     """Clear the current session"""
     clear_active_session()
     print("✅ Session cleared")
-
-
-def session_title_command(title, cdp_url=None):
-    """Set a title for the current session note"""
-    from .session_manager import set_session_title
-
-    # Resolve CDP URL using priority chain (Issue #11)
-    resolved_cdp = get_cdp_url(cdp_url)
-
-    success = asyncio.run(set_session_title(title, cdp_url=resolved_cdp))
-
-    if not success:
-        print(f"\n❌ Failed to set session title")
 
 
 def session_list_command():
@@ -706,7 +774,7 @@ def session_list_command():
         is_active = session.get('_is_active', False)
 
         print(f"📁 {session_dir}/session.json")
-        print(f"   🔮 Session: {session['session_id']}")
+        print(f"   🔮 Session: {session['session_id'][:16]}...")
         print(f"   🤝 AI: {session.get('ai_assistant', 'unknown')}")
         if session.get('issue_number'):
             print(f"   🎯 Issue: #{session['issue_number']}")
@@ -792,6 +860,28 @@ def session_publish_command(cdp_url=None):
         print(f"💡 Check Simplenote UI for the public URL")
 
 
+def session_unpublish_command(cdp_url=None):
+    """Unpublish the current session's note"""
+    import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Unpublishing Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+
+    success = asyncio.run(unpublish_session_note(cdp_url=resolved_cdp))
+
+    if success:
+        print(f"\n✅ Note unpublished successfully!")
+    else:
+        print(f"\n❌ Unpublish failed")
+
 
 def session_collab_add_command(email, cdp_url=None):
     """Add a collaborator to the current session's note"""
@@ -816,6 +906,29 @@ def session_collab_add_command(email, cdp_url=None):
     else:
         print(f"\n❌ Failed to add collaborator")
 
+
+def session_collab_remove_command(email, cdp_url=None):
+    """Remove a collaborator from the current session's note"""
+    import sys
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        sys.exit(1)
+
+    print(f"♠️🌿🎸🧵 Removing Collaborator from Session Note")
+    print(f"🔮 Session: {session['session_id']}")
+    print(f"👤 Collaborator: {email}")
+
+    success = asyncio.run(remove_session_collaborator(email, cdp_url=resolved_cdp))
+
+    if success:
+        print(f"\n✅ Collaborator removed successfully!")
+    else:
+        print(f"\n❌ Failed to remove collaborator")
 
 
 def session_collab_list_command(cdp_url=None):
@@ -1211,63 +1324,29 @@ def main():
         elif command == 'session':
             # Session command suite
             if len(sys.argv) < 3:
-                print("♠️🌿🎸🧵 SimExp Session Management")
-                print("\nUsage: simexp session <subcommand>")
+                print("Usage: simexp session <subcommand>")
                 print("\nSession Management:")
                 print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
                 print("  list                                         - List all sessions (directory tree)")
                 print("  info                                         - Show current session & directory context")
+                print("  status                                       - Show session status")
                 print("  clear                                        - Clear active session")
                 print("\nSession Content:")
                 print("  write <message>                              - Write to session note")
                 print("  read                                         - Read session note")
                 print("  add <file> [--heading <text>]                - Add file to session note")
-                print("  title <title>                                - Set session note title")
                 print("  open                                         - Open session note in browser")
                 print("  url                                          - Print session note URL")
-                print("\nCollaboration & Sharing (Issue #6):")
-                print("  collab <glyph|alias|group>                   - Share with Assembly (♠, 🌿, 🎸, 🧵, assembly)")
-                print("  collab add <email>                           - Add collaborator by email")
-                print("  collab list                                  - List all collaborators")
+                print("\nSharing & Publishing (Issue #6):")
+                print("  share <glyph|alias|group|email>              - Share with collaborator(s)")
                 print("  publish                                      - Publish note (get public URL)")
-                print("\nExamples:")
-                print("  simexp session start --ai claude --issue 42  # Start new session")
-                print("  simexp session write 'Progress update'       # Write to session")
-                print("  simexp session collab ♠                      # Share with Nyro")
-                print("  simexp session collab assembly               # Share with all Assembly")
-                print("  simexp session publish                       # Get public URL")
+                print("  unpublish                                    - Unpublish note (make private)")
+                print("  collab add <email>                           - Add collaborator")
+                print("  collab remove <email>                        - Remove collaborator")
+                print("  collab list                                  - List all collaborators")
                 sys.exit(1)
 
             subcommand = sys.argv[2]
-
-            # Handle --help and -h explicitly
-            if subcommand in ('--help', '-h', 'help'):
-                print("♠️🌿🎸🧵 SimExp Session Management")
-                print("\nUsage: simexp session <subcommand>")
-                print("\nSession Management:")
-                print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
-                print("  list                                         - List all sessions (directory tree)")
-                print("  info                                         - Show current session & directory context")
-                print("  clear                                        - Clear active session")
-                print("\nSession Content:")
-                print("  write <message>                              - Write to session note")
-                print("  read                                         - Read session note")
-                print("  add <file> [--heading <text>]                - Add file to session note")
-                print("  title <title>                                - Set session note title")
-                print("  open                                         - Open session note in browser")
-                print("  url                                          - Print session note URL")
-                print("\nCollaboration & Sharing (Issue #6):")
-                print("  collab <glyph|alias|group>                   - Share with Assembly (♠, 🌿, 🎸, 🧵, assembly)")
-                print("  collab add <email>                           - Add collaborator by email")
-                print("  collab list                                  - List all collaborators")
-                print("  publish                                      - Publish note (get public URL)")
-                print("\nExamples:")
-                print("  simexp session start --ai claude --issue 42  # Start new session")
-                print("  simexp session write 'Progress update'       # Write to session")
-                print("  simexp session collab ♠                      # Share with Nyro")
-                print("  simexp session collab assembly               # Share with all Assembly")
-                print("  simexp session publish                       # Get public URL")
-                sys.exit(0)
 
             if subcommand == 'start':
                 import argparse
@@ -1288,9 +1367,14 @@ def main():
                     prog='simexp session write')
                 parser.add_argument('content', nargs='?', help='Content to write (optional, reads from stdin if not provided)')
                 parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
+                parser.add_argument('--date', nargs='?', const=True, default=None,
+                                    help='Add timestamp prefix. Optional granularity: y, m, d, h, s (default), ms. Or provide manual timestamp.')
+                parser.add_argument('--prepend', action='store_true',
+                                    help='Insert at beginning (after metadata) instead of appending')
 
                 args = parser.parse_args(sys.argv[3:])
-                session_write_command(content=args.content, cdp_url=args.cdp_url)
+                session_write_command(content=args.content, cdp_url=args.cdp_url,
+                                      date_flag=args.date, prepend=args.prepend)
 
             elif subcommand == 'read':
                 import argparse
@@ -1315,19 +1399,11 @@ def main():
             elif subcommand == 'url':
                 session_url_command()
 
+            elif subcommand == 'status':
+                session_status_command()
+
             elif subcommand == 'clear':
                 session_clear_command()
-
-            elif subcommand == 'title':
-                import argparse
-                parser = argparse.ArgumentParser(
-                    description='Set a title for the session note',
-                    prog='simexp session title')
-                parser.add_argument('title', help='Title for the session note')
-                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
-
-                args = parser.parse_args(sys.argv[3:])
-                session_title_command(args.title, cdp_url=args.cdp_url)
 
             elif subcommand == 'list':
                 session_list_command()
@@ -1357,42 +1433,27 @@ def main():
                 args = parser.parse_args(sys.argv[3:])
                 session_publish_command(cdp_url=args.cdp_url)
 
+            elif subcommand == 'unpublish':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Unpublish session note',
+                    prog='simexp session unpublish')
+                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_unpublish_command(cdp_url=args.cdp_url)
+
             elif subcommand == 'collab':
                 # Collaborator management subcommands
                 if len(sys.argv) < 4:
-                    print("♠️🌿🎸🧵 SimExp Collaboration Management")
-                    print("\nUsage: simexp session collab <subcommand|glyph|alias|group>")
-                    print("\nShare with Assembly Members:")
-                    print("  <glyph|alias|group>    - Share using glyph (♠, 🌿, 🎸, 🧵), alias, or 'assembly'")
-                    print("\nManage Collaborators:")
-                    print("  add <email>            - Add collaborator by email")
-                    print("  list                   - List all collaborators")
-                    print("\nExamples:")
-                    print("  simexp session collab ♠                      # Share with Nyro (glyph)")
-                    print("  simexp session collab nyro                   # Share with Nyro (alias)")
-                    print("  simexp session collab assembly               # Share with all Assembly")
-                    print("  simexp session collab add jerry@example.com  # Add collaborator")
-                    print("  simexp session collab list                   # List collaborators")
+                    print("Usage: simexp session collab <add|remove|list> [email]")
+                    print("\nSubcommands:")
+                    print("  add <email>     - Add collaborator by email")
+                    print("  remove <email>  - Remove collaborator by email")
+                    print("  list            - List all collaborators")
                     sys.exit(1)
 
                 collab_action = sys.argv[3]
-
-                # Handle --help and -h explicitly
-                if collab_action in ('--help', '-h', 'help'):
-                    print("♠️🌿🎸🧵 SimExp Collaboration Management")
-                    print("\nUsage: simexp session collab <subcommand|glyph|alias|group>")
-                    print("\nShare with Assembly Members:")
-                    print("  <glyph|alias|group>    - Share using glyph (♠, 🌿, 🎸, 🧵), alias, or 'assembly'")
-                    print("\nManage Collaborators:")
-                    print("  add <email>            - Add collaborator by email")
-                    print("  list                   - List all collaborators")
-                    print("\nExamples:")
-                    print("  simexp session collab ♠                      # Share with Nyro (glyph)")
-                    print("  simexp session collab nyro                   # Share with Nyro (alias)")
-                    print("  simexp session collab assembly               # Share with all Assembly")
-                    print("  simexp session collab add jerry@example.com  # Add collaborator")
-                    print("  simexp session collab list                   # List collaborators")
-                    sys.exit(0)
 
                 if collab_action == 'add':
                     import argparse
@@ -1405,6 +1466,17 @@ def main():
                     args = parser.parse_args(sys.argv[4:])
                     session_collab_add_command(args.email, cdp_url=args.cdp_url)
 
+                elif collab_action == 'remove':
+                    import argparse
+                    parser = argparse.ArgumentParser(
+                        description='Remove collaborator',
+                        prog='simexp session collab remove')
+                    parser.add_argument('email', help='Collaborator email address')
+                    parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
+
+                    args = parser.parse_args(sys.argv[4:])
+                    session_collab_remove_command(args.email, cdp_url=args.cdp_url)
+
                 elif collab_action == 'list':
                     import argparse
                     parser = argparse.ArgumentParser(
@@ -1416,17 +1488,9 @@ def main():
                     session_collab_list_command(cdp_url=args.cdp_url)
 
                 else:
-                    # Not a known subcommand - treat as glyph/alias/group sharing
-                    import argparse
-                    parser = argparse.ArgumentParser(
-                        description='Share session note with collaborator(s) using glyph/alias/group',
-                        prog='simexp session collab')
-                    parser.add_argument('identifier', help='Glyph (♠, 🌿, 🎸, 🧵), alias (nyro, aureon, jamai, synth), group (assembly), or email')
-                    parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
-
-                    # Re-parse with the identifier
-                    args = parser.parse_args(sys.argv[3:])
-                    session_share_command(args.identifier, cdp_url=args.cdp_url)
+                    print(f"Unknown collab action: {collab_action}")
+                    print("Run 'simexp session collab' for usage information")
+                    sys.exit(1)
 
             elif subcommand == 'share':
                 import argparse
@@ -1447,39 +1511,13 @@ def main():
         elif command == 'browser':
             # Browser/CDP testing command suite (Issue #36 enhancement)
             if len(sys.argv) < 3:
-                print("♠️🌿🎸🧵 SimExp Browser/CDP Management")
-                print("\nUsage: simexp browser <subcommand>")
-                print("\nBrowser/CDP Commands (Issue #36):")
+                print("Usage: simexp browser <subcommand>")
+                print("\nBrowser/CDP Commands:")
                 print("  test                    - Test Chrome CDP connection and network binding")
-                print("  launch                  - Launch Chrome with CDP (localhost-only, secure)")
-                print("  launch --network        - Launch Chrome with network-wide access (WiFi)")
-                print("\nExamples:")
-                print("  simexp browser test                           # Test CDP connection")
-                print("  simexp browser launch                         # Launch Chrome (localhost)")
-                print("  simexp browser launch --network               # Launch Chrome (network-wide)")
-                print("  simexp browser launch --network --port 9223   # Custom port")
-                print("\nNetwork-wide access allows SimExp to connect from other devices on WiFi.")
-                print("Use 'simexp browser test' to verify your configuration.")
+                print("  launch [--network]      - Launch Chrome with CDP (--network for WiFi access)")
                 sys.exit(1)
 
             subcommand = sys.argv[2]
-
-            # Handle --help and -h explicitly
-            if subcommand in ('--help', '-h', 'help'):
-                print("♠️🌿🎸🧵 SimExp Browser/CDP Management")
-                print("\nUsage: simexp browser <subcommand>")
-                print("\nBrowser/CDP Commands (Issue #36):")
-                print("  test                    - Test Chrome CDP connection and network binding")
-                print("  launch                  - Launch Chrome with CDP (localhost-only, secure)")
-                print("  launch --network        - Launch Chrome with network-wide access (WiFi)")
-                print("\nExamples:")
-                print("  simexp browser test                           # Test CDP connection")
-                print("  simexp browser launch                         # Launch Chrome (localhost)")
-                print("  simexp browser launch --network               # Launch Chrome (network-wide)")
-                print("  simexp browser launch --network --port 9223   # Custom port")
-                print("\nNetwork-wide access allows SimExp to connect from other devices on WiFi.")
-                print("Use 'simexp browser test' to verify your configuration.")
-                sys.exit(0)
 
             if subcommand == 'test':
                 browser_test_command()
@@ -1506,12 +1544,70 @@ def main():
             print("\nCommands:")
             print("  simexp                       - Run extraction from clipboard/config")
             print("  simexp init                  - Initialize configuration")
-            print("  simexp session <subcommand>  - Session management (use --help for details)")
-            print("  simexp browser <subcommand>  - Browser/CDP testing & management (use --help for details)")
+            print("  simexp write <url> [msg]     - Write to Simplenote note")
+            print("  simexp read <url>            - Read from Simplenote note")
+            print("  simexp session <subcommand>  - Session management")
+            print("  simexp browser <subcommand>  - Browser/CDP testing & management")
             print("  simexp help                  - Show this help")
-            print("\nFor detailed help on any command, use:")
-            print("  simexp session --help")
-            print("  simexp browser --help")
+            print("\nBrowser/CDP Commands (Issue #36):")
+            print("  simexp browser test          - Test Chrome CDP connection & network binding")
+            print("  simexp browser launch        - Launch Chrome with CDP (localhost-only)")
+            print("  simexp browser launch --network  - Launch Chrome with network-wide access")
+            print("\nSession Commands:")
+            print("  simexp session start [--ai <assistant>] [--issue <number>]")
+            print("                               - Start new session with Simplenote note")
+            print("  simexp session list          - List all sessions across directory tree")
+            print("  simexp session info          - Show current session & directory context")
+            print("  simexp session status        - Show current session info")
+            print("  simexp session clear         - Clear active session")
+            print("  simexp session write <msg>   - Write to current session's note (--date, --prepend)")
+            print("  simexp session add <file>    - Add file content to session note")
+            print("  simexp session read          - Read current session's note")
+            print("  simexp session open          - Open session note in browser")
+            print("  simexp session url           - Print session note URL")
+            print("\nSharing Commands (Issue #6):")
+            print("  simexp session share <glyph|alias|group|email>  - Share with collaborator(s)")
+            print("  simexp session publish       - Publish note (get public URL)")
+            print("  simexp session unpublish     - Unpublish note (make private)")
+            print("  simexp session collab add <email>    - Add collaborator")
+            print("  simexp session collab remove <email> - Remove collaborator")
+            print("  simexp session collab list   - List all collaborators")
+            print("\nChrome CDP Configuration (Issue #11):")
+            print("  SimExp connects to Chrome via Chrome DevTools Protocol (CDP).")
+            print("  CDP URL resolution priority:")
+            print("    1. --cdp-url flag (highest priority)")
+            print("    2. SIMEXP_CDP_URL environment variable")
+            print("    3. CDP_URL in ~/.simexp/simexp.yaml")
+            print("    4. http://localhost:9222 (default)")
+            print("\n  Run 'simexp init' to configure CDP URL in config file.")
+            print("  Use --cdp-url flag to override: simexp session write 'msg' --cdp-url http://server:9222")
+            print("  Use env var: export SIMEXP_CDP_URL=http://192.168.1.100:9222")
+            print("\nExamples:")
+            print("  # Original features:")
+            print("  simexp write https://app.simplenote.com/p/0ZqWsQ 'Hello!'")
+            print("  echo 'Message' | simexp write https://app.simplenote.com/p/0ZqWsQ")
+            print("  simexp read https://app.simplenote.com/p/0ZqWsQ")
+            print("\n  # Session-aware notes:")
+            print("  simexp session start --ai claude --issue 42")
+            print("  simexp session write 'Implemented feature X'")
+            print("  echo 'Progress update' | simexp session write")
+            print("  simexp session write 'Morning pulse' --date h --prepend  # Timestamped prepend")
+            print("  simexp session write 'Quick note' --date ms              # Millisecond timestamp")
+            print("  simexp session status")
+            print("  simexp session open")
+            print("\n  # Multi-network CDP (Issue #11):")
+            print("  simexp init                              # Configure CDP URL during setup")
+            print("  export SIMEXP_CDP_URL=http://server:9222  # Use environment variable")
+            print("  simexp session start --cdp-url http://192.168.1.100:9222  # Override with flag")
+            print("\n  # Sharing & publishing:")
+            print("  simexp session share ♠️                        # Share with Nyro (glyph)")
+            print("  simexp session share nyro                     # Share with Nyro (alias)")
+            print("  simexp session share assembly                 # Share with Assembly group")
+            print("  simexp session share custom@example.com       # Share with custom email")
+            print("  simexp session publish")
+            print("  simexp session collab add jerry@example.com")
+            print("  simexp session collab list")
+            print("  simexp session unpublish")
 
         else:
             print(f"Unknown command: {command}")

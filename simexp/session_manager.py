@@ -9,140 +9,13 @@ import os
 import json
 import uuid
 import asyncio
-import re
 from datetime import datetime
 from typing import Optional, Dict, List
 from pathlib import Path
 import yaml
-import pyperclip
 
 from .playwright_writer import SimplenoteWriter, write_to_note
 from .session_file_handler import SessionFileHandler
-
-
-def extract_uuid_from_simplenote_link(internal_link: str) -> Optional[str]:
-    """
-    Extract UUID from Simplenote internal link
-
-    Args:
-        internal_link (str): Link in multiple formats:
-            - Direct URL: 'simplenote://note/{UUID}'
-            - Markdown link: '[text](simplenote://note/{UUID})'
-
-    Returns:
-        str: UUID if found, None otherwise
-
-    Examples:
-        extract_uuid_from_simplenote_link('simplenote://note/776d81cc-dabe-4b64-a068-f72e830474fb')
-        → '776d81cc-dabe-4b64-a068-f72e830474fb'
-
-        extract_uuid_from_simplenote_link('[New Note](simplenote://note/776d81cc-dabe-4b64-a068-f72e830474fb)')
-        → '776d81cc-dabe-4b64-a068-f72e830474fb'
-    """
-    # Match UUID in simplenote:// URL (handles both direct URL and Markdown link formats)
-    # Pattern: simplenote://note/{UUID} where UUID is hexadecimal with hyphens
-    match = re.search(r'simplenote://note/([a-f0-9\-]+)', internal_link)
-    if match:
-        return match.group(1)
-    return None
-
-
-async def extract_simplenote_uuid_from_note(writer) -> Optional[str]:
-    """
-    Extract UUID from newly created Simplenote note by copying internal link
-
-    This function:
-    1. Finds the menu button (⋯) in the note
-    2. Clicks it to open the context menu
-    3. Clicks "Copy Internal Link"
-    4. Extracts UUID from clipboard
-
-    Args:
-        writer: SimplenoteWriter instance with open page
-
-    Returns:
-        str: UUID extracted from internal link, or None if extraction fails
-    """
-    try:
-        import time
-
-        print(f"🔗 Extracting Simplenote internal link UUID...")
-
-        # Wait for the menu button to be available
-        # Try different selectors for the menu button
-        menu_selectors = [
-            'button[aria-label*="Actions"]',  # Common label for menu
-            'button[title*="Actions"]',
-            '.note-actions-menu button',
-            'button[aria-label*="menu"]',
-            '[data-action="menu"]',
-            '.toolbar button:last-child',
-        ]
-
-        menu_clicked = False
-        for selector in menu_selectors:
-            try:
-                menu_button = await writer.page.wait_for_selector(selector, timeout=2000)
-                if menu_button:
-                    await menu_button.click()
-                    menu_clicked = True
-                    print(f"✅ Clicked menu button: {selector}")
-                    break
-            except:
-                continue
-
-        if not menu_clicked:
-            print(f"⚠️ Could not find menu button, falling back to random UUID")
-            return None
-
-        # Wait for menu to appear
-        await asyncio.sleep(0.5)
-
-        # Click "Copy Internal Link" - try multiple text patterns
-        copy_link_selectors = [
-            'text=Copy Internal Link',
-            'button:has-text("Copy Internal Link")',
-            '[data-action="copy-link"]',
-        ]
-
-        link_copied = False
-        for selector in copy_link_selectors:
-            try:
-                copy_button = await writer.page.wait_for_selector(selector, timeout=2000)
-                if copy_button:
-                    await copy_button.click()
-                    link_copied = True
-                    print(f"✅ Clicked 'Copy Internal Link': {selector}")
-                    break
-            except:
-                continue
-
-        if not link_copied:
-            print(f"⚠️ Could not find 'Copy Internal Link' button")
-            return None
-
-        # Wait for clipboard to be populated
-        await asyncio.sleep(0.3)
-
-        # Read clipboard
-        try:
-            clipboard_content = pyperclip.paste()
-            uuid = extract_uuid_from_simplenote_link(clipboard_content)
-
-            if uuid:
-                print(f"✅ Extracted UUID from Simplenote: {uuid}")
-                return uuid
-            else:
-                print(f"⚠️ Could not extract UUID from clipboard: {clipboard_content}")
-                return None
-        except Exception as e:
-            print(f"⚠️ Clipboard read failed: {e}")
-            return None
-
-    except Exception as e:
-        print(f"⚠️ Failed to extract Simplenote UUID: {e}")
-        return None
-
 
 async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None) -> None:
     """
@@ -264,16 +137,23 @@ class SessionState:
             os.remove(self.state_file)
 
 
-def generate_yaml_header(
+def generate_html_metadata(
     session_id: str,
     ai_assistant: str = 'claude',
     agents: List[str] = None,
     issue_number: Optional[int] = None,
-    pr_number: Optional[int] = None,
-    simplenote_link: Optional[str] = None
+    pr_number: Optional[int] = None
 ) -> str:
     """
-    Generate HTML comment metadata header for session note
+    Generate HTML tag metadata header for session note
+
+    Uses hidden <div> tag for invisible, navigable metadata storage.
+    This approach:
+    - Keeps metadata invisible with 'hidden' attribute
+    - Prevents live-editor formatting corruption
+    - Enables easy Playwright selector navigation
+    - Maintains searchability (session_id still in text content)
+    - Provides cleaner user experience
 
     Args:
         session_id: Unique session UUID
@@ -281,17 +161,15 @@ def generate_yaml_header(
         agents: List of agent names (defaults to Assembly agents)
         issue_number: GitHub issue number being worked on
         pr_number: GitHub PR number (if applicable)
-        simplenote_link: Direct link to note in Simplenote app (simplenote://note/{UUID})
 
     Returns:
-        HTML comment-formatted metadata header as string
+        Hidden div with YAML metadata as string
     """
     if agents is None:
         agents = ['Jerry', 'Aureon', 'Nyro', 'JamAI', 'Synth']
 
     metadata = {
         'session_id': session_id,
-        'simplenote_link': simplenote_link,
         'ai_assistant': ai_assistant,
         'agents': agents,
         'issue_number': issue_number,
@@ -300,13 +178,8 @@ def generate_yaml_header(
     }
 
     yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
-
-    # Use HTML comment format for metadata
-    # This format:
-    # - Doesn't interfere with note content
-    # - Is searchable by Simplenote
-    # - Keeps metadata separate from actual content
-    return f"<!-- session_metadata\n{yaml_content}-->\n\n"
+    # Use hidden div with class for easy selector navigation
+    return f'<div class="simexp-session-metadata" hidden>\n{yaml_content}</div>\n\n'
 
 
 async def create_session_note(
@@ -335,14 +208,14 @@ async def create_session_note(
     Returns:
         Dictionary with session info (session_id, note_url, etc.)
     """
+    # Generate session ID
+    session_id = str(uuid.uuid4())
+
     print(f"♠️🌿🎸🧵 Creating Session Note")
+    print(f"🔮 Session ID: {session_id}")
     print(f"🤝 AI Assistant: {ai_assistant}")
     if issue_number:
         print(f"🎯 Issue: #{issue_number}")
-
-    # Will be extracted from Simplenote's internal link
-    session_id = None
-    simplenote_link = None
 
     # Connect to Simplenote and create new note
     # ⚡ FIX: Direct metadata write to avoid navigation bug
@@ -386,67 +259,34 @@ async def create_session_note(
         await asyncio.sleep(2)
         await writer.page.wait_for_load_state('networkidle')
 
-        # Extract UUID from Simplenote's internal link (Issue #43)
-        extracted_uuid = await extract_simplenote_uuid_from_note(writer)
-
-        # CRITICAL: Close any open menus by pressing Escape
-        await writer.page.keyboard.press('Escape')
-        await asyncio.sleep(0.5)
-
-        if extracted_uuid:
-            session_id = extracted_uuid
-            simplenote_link = f"simplenote://note/{extracted_uuid}"
-            print(f"🔮 Session ID: {session_id}")
-        else:
-            # Fallback to random UUID if extraction fails
-            print(f"⚠️ Falling back to random UUID generation...")
-            session_id = str(uuid.uuid4())
-            simplenote_link = f"simplenote://note/{session_id}"
-            print(f"🔮 Session ID: {session_id}")
-
-        # Generate YAML metadata header
-        yaml_header = generate_yaml_header(
+        # Generate HTML tag metadata header
+        metadata_header = generate_html_metadata(
             session_id=session_id,
             ai_assistant=ai_assistant,
-            issue_number=issue_number,
-            simplenote_link=simplenote_link
+            issue_number=issue_number
         )
 
-        # ⚡ FIX: Write metadata DIRECTLY to the new note
-        # After menu interaction, we need to refocus the editor
+        # ⚡ FIX: Write metadata DIRECTLY to the new note (already focused!)
+        # Don't use writer.write_content() - it would navigate and select wrong note
         print(f"📝 Writing metadata directly to new note...")
-        print(f"   Session ID: {session_id}")
 
-        # Find and click the editor to refocus it after menu interaction
+        # Find the editor element
         editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
         await editor.click()
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.5)
 
-        # Move cursor to beginning and ensure clean state
-        await writer.page.keyboard.press('Control+Home')
-        await asyncio.sleep(0.2)
-
-        # Type the YAML metadata directly
-        await writer.page.keyboard.type(yaml_header, delay=0)
-        await asyncio.sleep(2)  # Wait for autosave
+        # Type the HTML tag metadata directly
+        await writer.page.keyboard.type(metadata_header, delay=0)
+        await asyncio.sleep(1)  # Wait for autosave
 
         print(f"✅ Metadata written to new note")
-        print(f"   Session ID: {session_id}")
-        print(f"   (searching for this UUID to find note later)")
-
-        # CRITICAL: Wait for Simplenote to index the new note
-        # The note must be searchable before we return
-        print(f"⏳ Waiting for Simplenote to index note...")
-        await asyncio.sleep(3)  # Additional wait for indexing
 
     # Save session state
     # ⚡ FIX: Use session_id as search key, not note_url
     # 🧵 Enhancement (Issue #36): Store CDP endpoint for cross-device coordination
-    # ♠️ Enhancement (Issue #43): Use Simplenote's internal link UUID for direct note access
     session_data = {
         'session_id': session_id,
         'search_key': session_id,  # Use session_id to find the note via search
-        'simplenote_link': simplenote_link,  # Direct link to open note in Simplenote app
         'ai_assistant': ai_assistant,
         'issue_number': issue_number,
         'cdp_endpoint': cdp_url,  # Store CDP URL for network-wide access
@@ -570,90 +410,6 @@ def clear_active_session() -> None:
     print("🧹 Session cleared")
 
 
-async def set_session_title(title: str, cdp_url: str = 'http://localhost:9223') -> bool:
-    """
-    Set a title for the current session note
-
-    This function:
-    1. Gets the active session from session.json
-    2. Searches for the note using session_id
-    3. Goes to the beginning of the note (Ctrl+Home)
-    4. Writes the title at the top
-    5. Saves the title to session.json
-
-    Args:
-        title: The title to set for the session
-        cdp_url: Chrome DevTools Protocol URL
-
-    Returns:
-        True if successful, False otherwise
-    """
-    try:
-        # Get active session
-        session = get_active_session()
-        if not session:
-            print("❌ No active session. Run 'simexp session start' first.")
-            return False
-
-        print(f"♠️🌿🎸🧵 Setting Session Title")
-        print(f"🔮 Session: {session['session_id']}")
-        print(f"📝 Title: {title}")
-
-        # Search for and update the note
-        async with SimplenoteWriter(
-            note_url='https://app.simplenote.com/',
-            headless=False,
-            debug=True,
-            cdp_url=cdp_url
-        ) as writer:
-            # Navigate to Simplenote
-            await writer.page.goto('https://app.simplenote.com/')
-            await writer.page.wait_for_load_state('networkidle')
-
-            # Search for and select the session note
-            found = await search_and_select_note(
-                session['session_id'],
-                writer.page,
-                debug=True
-            )
-
-            if not found:
-                print("❌ Could not find session note.")
-                return False
-
-            # Get the editor and position cursor at beginning
-            editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
-            await editor.click()
-            await asyncio.sleep(0.3)
-
-            # Go to beginning
-            await writer.page.keyboard.press('Control+Home')
-            await asyncio.sleep(0.2)
-
-            # Type the title with a separator
-            title_text = f"{title}\n{'='*len(title)}\n\n"
-            await writer.page.keyboard.type(title_text, delay=10)
-            await asyncio.sleep(2)  # Wait for autosave
-
-            print(f"✅ Title written to note")
-
-        # Save title to session.json
-        state = SessionState()
-        session_data = state.load_session()
-        if session_data:
-            session_data['title'] = title
-            state.save_session(session_data)
-            print(f"💾 Title saved to session.json")
-            return True
-        else:
-            print("⚠️ Could not save title to session.json")
-            return False
-
-    except Exception as e:
-        print(f"❌ Error setting session title: {e}")
-        return False
-
-
 async def search_and_select_note(
     session_id: str,
     page,
@@ -700,15 +456,13 @@ async def search_and_select_note(
         await page.keyboard.press('Control+A')
         await page.keyboard.press('Backspace')
         await page.keyboard.type(session_id, delay=50)
+        await asyncio.sleep(1)  # Wait for search results
 
         if debug:
             print(f"✅ Typed search query: {session_id}")
-            print(f"⏳ Waiting for search results to appear...")
-
-        await asyncio.sleep(2)  # Wait for search results to be indexed and displayed
 
         # Click the first result (should be our note with the session_id in metadata)
-        note_result = await page.wait_for_selector('.note-list-item', timeout=8000)
+        note_result = await page.wait_for_selector('.note-list-item', timeout=5000)
         if note_result:
             await note_result.click()
             await asyncio.sleep(1)  # Wait for note to load
