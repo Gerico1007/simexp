@@ -674,6 +674,19 @@ def session_clear_command():
     print("✅ Session cleared")
 
 
+def session_title_command(title, cdp_url=None):
+    """Set a title for the current session note"""
+    from .session_manager import set_session_title
+
+    # Resolve CDP URL using priority chain (Issue #11)
+    resolved_cdp = get_cdp_url(cdp_url)
+
+    success = asyncio.run(set_session_title(title, cdp_url=resolved_cdp))
+
+    if not success:
+        print(f"\n❌ Failed to set session title")
+
+
 def session_list_command():
     """List all sessions across directory tree"""
     from .session_manager import list_all_sessions
@@ -1209,6 +1222,7 @@ def main():
                 print("  write <message>                              - Write to session note")
                 print("  read                                         - Read session note")
                 print("  add <file> [--heading <text>]                - Add file to session note")
+                print("  title <title>                                - Set session note title")
                 print("  open                                         - Open session note in browser")
                 print("  url                                          - Print session note URL")
                 print("\nCollaboration & Sharing (Issue #6):")
@@ -1239,6 +1253,7 @@ def main():
                 print("  write <message>                              - Write to session note")
                 print("  read                                         - Read session note")
                 print("  add <file> [--heading <text>]                - Add file to session note")
+                print("  title <title>                                - Set session note title")
                 print("  open                                         - Open session note in browser")
                 print("  url                                          - Print session note URL")
                 print("\nCollaboration & Sharing (Issue #6):")
@@ -1302,6 +1317,17 @@ def main():
 
             elif subcommand == 'clear':
                 session_clear_command()
+
+            elif subcommand == 'title':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Set a title for the session note',
+                    prog='simexp session title')
+                parser.add_argument('title', help='Title for the session note')
+                parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_title_command(args.title, cdp_url=args.cdp_url)
 
             elif subcommand == 'list':
                 session_list_command()
