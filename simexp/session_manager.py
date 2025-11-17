@@ -410,6 +410,90 @@ def clear_active_session() -> None:
     print("🧹 Session cleared")
 
 
+async def set_session_title(title: str, cdp_url: str = 'http://localhost:9223') -> bool:
+    """
+    Set a title for the current session note
+
+    This function:
+    1. Gets the active session from session.json
+    2. Searches for the note using session_id
+    3. Goes to the beginning of the note (Ctrl+Home)
+    4. Writes the title at the top
+    5. Saves the title to session.json
+
+    Args:
+        title: The title to set for the session
+        cdp_url: Chrome DevTools Protocol URL
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Get active session
+        session = get_active_session()
+        if not session:
+            print("❌ No active session. Run 'simexp session start' first.")
+            return False
+
+        print(f"♠️🌿🎸🧵 Setting Session Title")
+        print(f"🔮 Session: {session['session_id']}")
+        print(f"📝 Title: {title}")
+
+        # Search for and update the note
+        async with SimplenoteWriter(
+            note_url='https://app.simplenote.com/',
+            headless=False,
+            debug=True,
+            cdp_url=cdp_url
+        ) as writer:
+            # Navigate to Simplenote
+            await writer.page.goto('https://app.simplenote.com/')
+            await writer.page.wait_for_load_state('networkidle')
+
+            # Search for and select the session note
+            found = await search_and_select_note(
+                session['session_id'],
+                writer.page,
+                debug=True
+            )
+
+            if not found:
+                print("❌ Could not find session note.")
+                return False
+
+            # Get the editor and position cursor at beginning
+            editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
+            await editor.click()
+            await asyncio.sleep(0.3)
+
+            # Go to beginning
+            await writer.page.keyboard.press('Control+Home')
+            await asyncio.sleep(0.2)
+
+            # Type the title with a separator
+            title_text = f"{title}\n{'='*len(title)}\n\n"
+            await writer.page.keyboard.type(title_text, delay=10)
+            await asyncio.sleep(2)  # Wait for autosave
+
+            print(f"✅ Title written to note")
+
+        # Save title to session.json
+        state = SessionState()
+        session_data = state.load_session()
+        if session_data:
+            session_data['title'] = title
+            state.save_session(session_data)
+            print(f"💾 Title saved to session.json")
+            return True
+        else:
+            print("⚠️ Could not save title to session.json")
+            return False
+
+    except Exception as e:
+        print(f"❌ Error setting session title: {e}")
+        return False
+
+
 async def search_and_select_note(
     session_id: str,
     page,
