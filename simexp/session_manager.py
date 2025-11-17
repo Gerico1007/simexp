@@ -273,7 +273,7 @@ def generate_yaml_header(
     simplenote_link: Optional[str] = None
 ) -> str:
     """
-    Generate YAML metadata header for session note
+    Generate HTML comment metadata header for session note
 
     Args:
         session_id: Unique session UUID
@@ -284,7 +284,7 @@ def generate_yaml_header(
         simplenote_link: Direct link to note in Simplenote app (simplenote://note/{UUID})
 
     Returns:
-        YAML-formatted metadata header as string
+        HTML comment-formatted metadata header as string
     """
     if agents is None:
         agents = ['Jerry', 'Aureon', 'Nyro', 'JamAI', 'Synth']
@@ -300,7 +300,13 @@ def generate_yaml_header(
     }
 
     yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
-    return f"---\n{yaml_content}---\n\n"
+
+    # Use HTML comment format for metadata
+    # This format:
+    # - Doesn't interfere with note content
+    # - Is searchable by Simplenote
+    # - Keeps metadata separate from actual content
+    return f"<!-- session_metadata\n{yaml_content}-->\n\n"
 
 
 async def create_session_note(
