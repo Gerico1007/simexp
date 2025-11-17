@@ -405,6 +405,7 @@ async def create_session_note(
         # ⚡ FIX: Write metadata DIRECTLY to the new note (already focused!)
         # Don't use writer.write_content() - it would navigate and select wrong note
         print(f"📝 Writing metadata directly to new note...")
+        print(f"   Session ID (searchable): {session_id}")
 
         # Find the editor element
         editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
@@ -413,9 +414,16 @@ async def create_session_note(
 
         # Type the YAML metadata directly
         await writer.page.keyboard.type(yaml_header, delay=0)
-        await asyncio.sleep(1)  # Wait for autosave
+        await asyncio.sleep(2)  # Wait for autosave
 
         print(f"✅ Metadata written to new note")
+        print(f"   Session ID: {session_id}")
+        print(f"   (searching for this UUID to find note later)")
+
+        # CRITICAL: Wait for Simplenote to index the new note
+        # The note must be searchable before we return
+        print(f"⏳ Waiting for Simplenote to index note...")
+        await asyncio.sleep(3)  # Additional wait for indexing
 
     # Save session state
     # ⚡ FIX: Use session_id as search key, not note_url
@@ -594,13 +602,15 @@ async def search_and_select_note(
         await page.keyboard.press('Control+A')
         await page.keyboard.press('Backspace')
         await page.keyboard.type(session_id, delay=50)
-        await asyncio.sleep(1)  # Wait for search results
 
         if debug:
             print(f"✅ Typed search query: {session_id}")
+            print(f"⏳ Waiting for search results to appear...")
+
+        await asyncio.sleep(2)  # Wait for search results to be indexed and displayed
 
         # Click the first result (should be our note with the session_id in metadata)
-        note_result = await page.wait_for_selector('.note-list-item', timeout=5000)
+        note_result = await page.wait_for_selector('.note-list-item', timeout=8000)
         if note_result:
             await note_result.click()
             await asyncio.sleep(1)  # Wait for note to load
