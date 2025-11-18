@@ -12,12 +12,14 @@ import pyperclip
 import subprocess
 import shutil
 import time
+import re
 from .playwright_writer import write_to_note, read_from_note, SimplenoteWriter
 from .session_manager import (
     create_session_note,
     get_active_session,
     clear_active_session,
-    search_and_select_note
+    search_and_select_note,
+    SessionState
 )
 from .session_sharing import (
     publish_session_note,
@@ -30,6 +32,95 @@ from .timestamp_utils import format_timestamped_entry, insert_after_metadata
 
 # Config file in user's home directory (not package directory)
 CONFIG_FILE = os.path.expanduser('~/.simexp/simexp.yaml')
+
+# ═══════════════════════════════════════════════════════════════
+# PUBLIC URL RESOLUTION - Resolve public Simplenote URLs to internal UUIDs
+# ♠️🌿🎸🧵 G.Music Assembly - Public to Private URL Resolution
+# ═══════════════════════════════════════════════════════════════
+
+def resolve_public_url(public_url: str) -> Optional[str]:
+    """
+    Resolve public Simplenote URL to internal note UUID
+
+    Public URLs (https://app.simplenote.com/p/<uuid>) are read-only.
+    This function fetches the public page, extracts the internal
+    simplenote://note/<uuid> link, and returns the UUID for writing.
+
+    Args:
+        public_url: Public Simplenote URL (e.g., https://app.simplenote.com/p/0ZqWsQ)
+
+    Returns:
+        Internal note UUID (36-character UUID string) or None if not found
+
+    Examples:
+        >>> resolve_public_url('https://app.simplenote.com/p/0ZqWsQ')
+        '76502186-4d7d-48d6-a961-80a48573b2c7'
+    """
+    print(f"🔍 Detecting public Simplenote URL...")
+    print(f"   🌐 Public URL: {public_url}")
+
+    # Fetch public page content
+    print(f"   ⬇️  Fetching public page content...", end=" ", flush=True)
+    content = fetch_content(public_url)
+
+    if not content:
+        print("❌")
+        print(f"   ⚠️  Failed to fetch public page")
+        return None
+
+    print("✓")
+
+    # Extract internal UUID using regex
+    # Pattern: simplenote://note/76502186-4d7d-48d6-a961-80a48573b2c7
+    print(f"   🔎 Searching for internal Simplenote link...", end=" ", flush=True)
+    pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+    match = re.search(pattern, content)
+
+    if match:
+        uuid = match.group(1)
+        print("✓")
+        print(f"   ♻️  Resolved UUID: {uuid}")
+        return uuid
+    else:
+        print("❌")
+        print(f"   ⚠️  No internal Simplenote link found in public page")
+        print(f"   💡 Make sure the note contains a simplenote://note/<uuid> link")
+        return None
+
+
+def store_session_uuid(uuid: str) -> None:
+    """
+    Store resolved UUID in session.json for reuse
+
+    Args:
+        uuid: Internal note UUID to store
+    """
+    session_state = SessionState()
+    session_data = session_state.load_session() or {}
+
+    # Add or update session_uuid field
+    session_data['session_uuid'] = uuid
+    session_data['session_uuid_updated_at'] = datetime.now().isoformat()
+
+    session_state.save_session(session_data)
+    print(f"   🧠 Stored UUID in session.json")
+
+
+def get_session_uuid() -> Optional[str]:
+    """
+    Get stored UUID from session.json
+
+    Returns:
+        Stored UUID or None if not found
+    """
+    session_state = SessionState()
+    session_data = session_state.load_session()
+
+    if session_data and 'session_uuid' in session_data:
+        return session_data['session_uuid']
+
+    return None
+
 
 # ═══════════════════════════════════════════════════════════════
 # CDP URL RESOLUTION - Issue #11
@@ -304,8 +395,11 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
     """
     Write content to Simplenote note via Playwright
 
+    Supports automatic resolution of public Simplenote URLs (/p/<uuid>) to
+    internal note UUIDs for writing to existing notes.
+
     Args:
-        note_url: Simplenote note URL
+        note_url: Simplenote note URL (supports both /n/ and /p/ URLs)
         content: Content to write (if None, read from stdin)
         mode: 'append' or 'replace'
         headless: Run browser in headless mode
@@ -315,6 +409,32 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
 
     # Resolve CDP URL using priority chain (Issue #11)
     resolved_cdp = get_cdp_url(cdp_url)
+
+    # ═══════════════════════════════════════════════════════════════
+    # PUBLIC URL RESOLUTION - Automatic UUID extraction
+    # ♠️🌿🎸🧵 G.Music Assembly - Bridge public to private
+    # ═══════════════════════════════════════════════════════════════
+
+    # Detect public Simplenote URL pattern (/p/<uuid>)
+    if '/p/' in note_url:
+        print(f"♠️🌿🎸🧵 SimExp Public URL Resolution")
+        print()
+
+        # Resolve public URL to internal UUID
+        uuid = resolve_public_url(note_url)
+
+        if not uuid:
+            print(f"\n❌ Could not resolve public URL to internal UUID")
+            print(f"💡 Make sure the note contains a simplenote://note/<uuid> link")
+            return
+
+        # Store UUID in session.json for reuse
+        store_session_uuid(uuid)
+
+        # Convert UUID to internal editor URL
+        note_url = f'https://app.simplenote.com/n/{uuid}'
+        print(f"   🔗 Internal URL: {note_url}")
+        print()
 
     # Read from stdin if no content provided
     if content is None:
@@ -1235,14 +1355,14 @@ def main():
         elif command == 'write':
             import argparse
             parser = argparse.ArgumentParser(
-                description='Write content to a Simplenote note.',
+                description='Write content to a Simplenote note. Automatically resolves public URLs (/p/<uuid>) to internal UUIDs.',
                 prog='simexp write')
             parser.add_argument('content', help='The content to write. If not provided, reads from stdin.')
-            parser.add_argument('--note-url', default='https://app.simplenote.com/', help='The URL of the Simplenote note. Defaults to the main page, which will select the most recent note.')
+            parser.add_argument('--note-url', default='https://app.simplenote.com/', help='The URL of the Simplenote note. Supports public URLs (https://app.simplenote.com/p/<uuid>) and internal URLs (https://app.simplenote.com/n/<uuid>). Defaults to the main page, which will select the most recent note.')
             parser.add_argument('--mode', choices=['append', 'replace'], default='append', help='Write mode.')
             parser.add_argument('--headless', action='store_true', help='Run in headless mode.')
             parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL to connect to an existing browser.')
-            
+
             args = parser.parse_args(sys.argv[2:])
 
             write_command(args.note_url, args.content, mode=args.mode, headless=args.headless, cdp_url=args.cdp_url)

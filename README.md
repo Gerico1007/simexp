@@ -102,6 +102,7 @@ Check your Simplenote note - the message is there! It will also sync to your oth
 - **Authenticated Session**: Connects to your logged-in Chrome browser
 - **Cross-Device Sync**: Messages appear on all your devices
 - **Persistent Changes**: Content stays in notes (doesn't get reverted)
+- **Public URL Resolution**: Automatically resolves public URLs (/p/) to internal UUIDs for writing
 
 ### 🔮 Session-Aware Notes (NEW - Issue #4!)
 - **Automatic Session Notes**: Create dedicated Simplenote notes for each terminal session
@@ -328,6 +329,39 @@ If you need to write to a specific note, you can provide its URL.
 ```bash
 python -m simexp.simex write "Your message here" --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9222
 ```
+
+### 🔗 Public URL Resolution (NEW!)
+
+SimExp now automatically resolves public Simplenote URLs to their internal UUIDs, enabling you to write to existing notes using their public links!
+
+**How it works:**
+1. You provide a public URL (`https://app.simplenote.com/p/0ZqWsQ`)
+2. SimExp fetches the public page and extracts the internal `simplenote://note/<uuid>` link
+3. The UUID is stored in `~/.simexp/session.json` for reuse
+4. SimExp converts it to an internal editor URL and writes to the note
+
+**Example:**
+```bash
+# Write to a note using its public URL
+simexp write --note-url https://app.simplenote.com/p/0ZqWsQ "Appended content"
+
+# Output:
+# 🔍 Detecting public Simplenote URL...
+#    🌐 Public URL: https://app.simplenote.com/p/0ZqWsQ
+#    ⬇️  Fetching public page content... ✓
+#    🔎 Searching for internal Simplenote link... ✓
+#    ♻️  Resolved UUID: 76502186-4d7d-48d6-a961-80a48573b2c7
+#    🧠 Stored UUID in session.json
+#    🔗 Internal URL: https://app.simplenote.com/n/76502186-4d7d-48d6-a961-80a48573b2c7
+#
+# ✅ Content appended to internal note.
+```
+
+**Benefits:**
+- ✅ Write to existing notes using their public links
+- ✅ No manual UUID extraction needed
+- ✅ Seamless one-command workflow
+- ✅ UUID cached for future writes
 
 ### Read from a Specific Note
 
@@ -611,6 +645,7 @@ SimExp is part of the **G.Music Assembly** ecosystem:
 
 - [x] **Session-aware notes** (✅ Issue #4 - COMPLETED!)
 - [x] **Timestamp integration** (✅ Issue #33 - COMPLETED!)
+- [x] **Public URL Resolution** (✅ COMPLETED! - Automatic UUID extraction for writing)
 - [ ] Monitor mode (real-time change detection)
 - [ ] Bidirectional sync daemon
 - [ ] Multiple channel support
