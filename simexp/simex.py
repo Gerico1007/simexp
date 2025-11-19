@@ -84,21 +84,19 @@ def resolve_public_url(public_url: str, cdp_url: str = None) -> Optional[str]:
         print("❌")
 
     # Method 2: Use browser automation to navigate from public URL
-    print(f"   🌐 Method 2: Using browser navigation...", end=" ", flush=True)
+    print(f"   🌐 Method 2: Using browser navigation...")
 
     try:
         resolved_cdp = get_cdp_url(cdp_url)
-        uuid = asyncio.run(_resolve_via_browser(public_url, resolved_cdp))
+        uuid = asyncio.run(_resolve_via_browser(public_url, resolved_cdp, debug=True))
 
         if uuid:
-            print("✓")
             print(f"   ♻️  Resolved UUID: {uuid}")
             return uuid
         else:
-            print("❌")
+            print(f"   ❌ Browser navigation could not extract UUID")
     except Exception as e:
-        print("❌")
-        print(f"   ⚠️  Browser navigation failed: {e}")
+        print(f"   ❌ Browser navigation failed: {e}")
 
     print(f"\n   ⚠️  Could not resolve public URL to internal UUID")
     print(f"   💡 Tip: Add the internal link to your note:")
@@ -108,7 +106,7 @@ def resolve_public_url(public_url: str, cdp_url: str = None) -> Optional[str]:
     return None
 
 
-async def _resolve_via_browser(public_url: str, cdp_url: str) -> Optional[str]:
+async def _resolve_via_browser(public_url: str, cdp_url: str, debug: bool = True) -> Optional[str]:
     """
     Resolve public URL by navigating in authenticated browser and reading page content
 
@@ -120,6 +118,7 @@ async def _resolve_via_browser(public_url: str, cdp_url: str) -> Optional[str]:
     Args:
         public_url: Public Simplenote URL
         cdp_url: Chrome DevTools Protocol URL
+        debug: Enable debug output
 
     Returns:
         Internal note UUID or None
@@ -156,60 +155,94 @@ async def _resolve_via_browser(public_url: str, cdp_url: str) -> Optional[str]:
         except:
             pass
 
-        # Method 2b: Try to find the note by its title in the main Simplenote app
+        # Method 2b: Try to find the note by searching its content in Simplenote app
         try:
-            # Get the note title from the public page
-            title_element = await writer.page.query_selector('title')
-            if title_element:
-                title = await title_element.text_content()
-                title = title.strip()
+            # Extract note content from the public page
+            note_content_element = await writer.page.query_selector('.note-detail-markdown, .note-content, .published-note-content')
 
-                # Navigate to main Simplenote app
-                await writer.page.goto('https://app.simplenote.com/')
-                await asyncio.sleep(2)
+            if note_content_element:
+                # Get the text content (first few words for searching)
+                full_content = await note_content_element.text_content()
+                # Use first 20-30 characters for search (enough to be unique)
+                search_text = full_content.strip()[:30].strip()
 
-                # Search for the note by title
-                search_selectors = [
-                    'input[placeholder*="Search"]',
-                    'input[type="search"]',
-                    '.search-field',
-                    '[data-search-input]'
-                ]
+                if debug:
+                    print(f"\n   🔍 Searching by content: '{search_text}'")
 
-                for selector in search_selectors:
-                    try:
-                        search_box = await writer.page.wait_for_selector(selector, timeout=2000)
-                        if search_box:
-                            # Type the title to search
-                            await search_box.click()
-                            await search_box.fill(title)
-                            await asyncio.sleep(1)
+                if search_text:
+                    # Navigate to main Simplenote app
+                    if debug:
+                        print(f"   🌐 Navigating to Simplenote app...")
+                    await writer.page.goto('https://app.simplenote.com/')
+                    await asyncio.sleep(2)
 
-                            # Click the first result
-                            first_note_selectors = [
-                                '.note-list-item:first-child',
-                                '[data-note-id]',
-                                '.note-preview:first-child'
-                            ]
+                    # Search for the note using content
+                    search_selectors = [
+                        'input[placeholder*="Search"]',
+                        'input[type="search"]',
+                        '.search-field',
+                        'input.search-bar',
+                        '[aria-label*="Search"]'
+                    ]
 
-                            for note_selector in first_note_selectors:
-                                try:
-                                    first_note = await writer.page.wait_for_selector(note_selector, timeout=2000)
-                                    if first_note:
-                                        await first_note.click()
-                                        await asyncio.sleep(1)
+                    for selector in search_selectors:
+                        try:
+                            search_box = await writer.page.wait_for_selector(selector, timeout=3000)
+                            if search_box:
+                                if debug:
+                                    print(f"   ⌨️  Found search box: {selector}")
+                                # Click and type the search text
+                                await search_box.click()
+                                await asyncio.sleep(0.5)
+                                await search_box.fill(search_text)
+                                if debug:
+                                    print(f"   ⏳ Waiting for search results...")
+                                await asyncio.sleep(1.5)  # Wait for search results
 
-                                        # Check if URL changed to internal note
-                                        current_url = writer.page.url
-                                        match = re.search(pattern, current_url)
-                                        if match:
-                                            return match.group(1)
-                                except:
-                                    continue
-                    except:
-                        continue
-        except:
-            pass
+                                # Try to click the first matching note
+                                first_note_selectors = [
+                                    '.note-list-item:first-child',
+                                    '.note-list .note:first-child',
+                                    '[role="button"].note:first-child',
+                                    'article:first-child',
+                                    '.note-preview:first-child'
+                                ]
+
+                                for note_selector in first_note_selectors:
+                                    try:
+                                        first_note = await writer.page.wait_for_selector(note_selector, timeout=2000)
+                                        if first_note:
+                                            if debug:
+                                                print(f"   🖱️  Clicking first result: {note_selector}")
+                                            await first_note.click()
+                                            await asyncio.sleep(1.5)  # Wait for note to open
+
+                                            # Check if URL changed to internal note
+                                            current_url = writer.page.url
+                                            if debug:
+                                                print(f"   📍 Current URL: {current_url}")
+                                            match = re.search(pattern, current_url)
+                                            if match:
+                                                if debug:
+                                                    print(f"   ✅ Found UUID in URL!")
+                                                return match.group(1)
+                                    except Exception as e:
+                                        if debug:
+                                            print(f"   ⚠️  Selector {note_selector} failed: {e}")
+                                        continue
+
+                                # If we got here, found search box but couldn't extract UUID
+                                break
+                        except Exception as e:
+                            if debug:
+                                print(f"   ⚠️  Search selector {selector} failed: {e}")
+                            continue
+            else:
+                if debug:
+                    print(f"   ⚠️  Could not find note content element on public page")
+        except Exception as e:
+            if debug:
+                print(f"   ⚠️  Browser search failed: {e}")
 
         return None
 
