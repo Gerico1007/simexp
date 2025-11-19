@@ -323,6 +323,227 @@ async def _resolve_via_browser(public_url: str, cdp_url: str, debug: bool = True
         return None
 
 
+async def _write_to_public_note(
+    public_url: str,
+    content: str,
+    mode: str,
+    cdp_url: str,
+    init_session: bool = False,
+    ai_assistant: str = 'claude',
+    issue_number: Optional[int] = None,
+    debug: bool = True
+) -> bool:
+    """
+    Write to a public note by opening it and writing directly
+
+    This matches the session start pattern:
+    1. Navigate to Simplenote app
+    2. Search for note by content
+    3. Click note to open it
+    4. If init_session: Write metadata directly to the open note
+    5. Write user content directly to the open note
+    6. Save session data with search key
+
+    Args:
+        public_url: Public Simplenote URL (e.g., https://app.simplenote.com/p/0ZqWsQ)
+        content: Content to write
+        mode: 'append' or 'replace'
+        cdp_url: Chrome DevTools Protocol URL
+        init_session: Add session metadata to note
+        ai_assistant: AI assistant name if init_session=True
+        issue_number: GitHub issue number if init_session=True
+        debug: Enable debug output
+
+    Returns:
+        True if successful
+    """
+    try:
+        async with SimplenoteWriter(
+            note_url=public_url,
+            headless=False,
+            debug=False,
+            cdp_url=cdp_url
+        ) as writer:
+            # Step 1: Navigate to public URL to get note content for searching
+            if debug:
+                print(f"🌐 Loading public note to extract search text...")
+            await writer.page.goto(public_url)
+            await asyncio.sleep(2)
+
+            # Extract note content from the public page
+            note_content_element = await writer.page.query_selector('.note-detail-markdown, .note-content, .published-note-content')
+
+            if not note_content_element:
+                print("❌ Could not find note content on public page")
+                return False
+
+            # Get the text content (first few words for searching)
+            full_content = await note_content_element.text_content()
+            # Use first 30 characters for search (enough to be unique)
+            search_text = full_content.strip()[:30].strip()
+
+            if not search_text:
+                print("❌ Public note appears to be empty")
+                return False
+
+            if debug:
+                print(f"🔍 Search text: '{search_text}'")
+
+            # Step 2: Navigate to main Simplenote app
+            if debug:
+                print(f"🌐 Navigating to Simplenote app...")
+            await writer.page.goto('https://app.simplenote.com/')
+            await asyncio.sleep(2)
+
+            # Step 3: Search for the note using content
+            search_selectors = [
+                'input[placeholder*="Search"]',
+                'input[type="search"]',
+                '.search-field',
+                'input.search-bar',
+                '[aria-label*="Search"]'
+            ]
+
+            search_box = None
+            for selector in search_selectors:
+                try:
+                    search_box = await writer.page.wait_for_selector(selector, timeout=3000)
+                    if search_box:
+                        if debug:
+                            print(f"✅ Found search box: {selector}")
+                        break
+                except:
+                    continue
+
+            if not search_box:
+                print("❌ Could not find search box in Simplenote")
+                return False
+
+            # Click and type the search text
+            await search_box.click()
+            await asyncio.sleep(0.5)
+            await search_box.fill(search_text)
+            if debug:
+                print(f"⏳ Waiting for search results...")
+            await asyncio.sleep(1.5)
+
+            # Step 4: Click the first matching note
+            first_note_selectors = [
+                '.note-list-item:first-child',
+                '.note-list .note:first-child',
+                '[role="button"].note:first-child',
+                'article:first-child',
+                '.note-preview:first-child'
+            ]
+
+            note_opened = False
+            for note_selector in first_note_selectors:
+                try:
+                    first_note = await writer.page.wait_for_selector(note_selector, timeout=2000)
+                    if first_note:
+                        if debug:
+                            print(f"✅ Clicking note: {note_selector}")
+                        await first_note.click()
+                        await asyncio.sleep(2)  # Wait for note to open
+                        note_opened = True
+                        break
+                except:
+                    continue
+
+            if not note_opened:
+                print("❌ Could not find or click note in search results")
+                return False
+
+            if debug:
+                print(f"✅ Note opened in editor")
+
+            # Step 5: Write session metadata if requested (like session start)
+            if init_session:
+                from .session_manager import generate_html_metadata
+                import uuid as uuid_module
+
+                # Generate session ID
+                session_id = str(uuid_module.uuid4())
+
+                if debug:
+                    print(f"🔮 Initializing session: {session_id}")
+
+                # Generate metadata
+                metadata = generate_html_metadata(
+                    session_id=session_id,
+                    ai_assistant=ai_assistant,
+                    issue_number=issue_number
+                )
+
+                # Find the editor element
+                editor = await writer.page.wait_for_selector('div.note-editor, .note-content-editor', timeout=5000)
+                await editor.click()
+                await asyncio.sleep(0.5)
+
+                # Go to beginning
+                await writer.page.keyboard.press('Control+Home')
+                await asyncio.sleep(0.3)
+
+                # Type metadata
+                if debug:
+                    print(f"📝 Writing session metadata...")
+                await writer.page.keyboard.type(metadata, delay=0)
+                await asyncio.sleep(1)
+
+                # Save session data (using public URL as search key)
+                from .session_manager import SessionState
+                session_state = SessionState()
+                session_data = {
+                    'session_id': session_id,
+                    'search_key': search_text,  # Use search text to find note later
+                    'public_url': public_url,  # Store public URL for reference
+                    'ai_assistant': ai_assistant,
+                    'issue_number': issue_number,
+                    'cdp_endpoint': cdp_url,
+                    'created_at': datetime.now().isoformat()
+                }
+                session_state.save_session(session_data)
+                if debug:
+                    print(f"💾 Session saved to .simexp/session.json")
+
+            # Step 6: Write user content
+            editor = await writer.page.wait_for_selector('div.note-editor, .note-content-editor', timeout=5000)
+            await editor.click()
+            await asyncio.sleep(0.5)
+
+            if mode == 'replace':
+                # Clear all content
+                if debug:
+                    print(f"🗑️  Replacing all content...")
+                await writer.page.keyboard.press('Control+A')
+                await writer.page.keyboard.press('Backspace')
+                await asyncio.sleep(0.3)
+            else:
+                # Append mode - go to end
+                if debug:
+                    print(f"📝 Appending content...")
+                await writer.page.keyboard.press('Control+End')
+                await asyncio.sleep(0.3)
+                # Add spacing
+                await writer.page.keyboard.type('\n\n', delay=0)
+
+            # Type the content
+            await writer.page.keyboard.type(content, delay=0)
+            await asyncio.sleep(2)  # Wait for autosave
+
+            if debug:
+                print(f"✅ Content written ({len(content)} chars)")
+                print(f"✅ Write successful!")
+
+            return True
+
+    except Exception as e:
+        print(f"❌ Error writing to public note: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 async def _add_session_metadata_to_note(note_url: str, uuid: str, cdp_url: str, ai_assistant: str = 'claude', issue_number: Optional[int] = None) -> None:
     """
     Add session metadata to an existing note (like session start does)
@@ -713,45 +934,37 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
     resolved_cdp = get_cdp_url(cdp_url)
 
     # ═══════════════════════════════════════════════════════════════
-    # PUBLIC URL RESOLUTION - Automatic UUID extraction
+    # PUBLIC URL RESOLUTION - Write directly to opened note
     # ♠️🌿🎸🧵 G.Music Assembly - Bridge public to private
     # ═══════════════════════════════════════════════════════════════
 
-    resolved_uuid = None  # Track resolved UUID for session init
-
     # Detect public Simplenote URL pattern (/p/<uuid>)
     if '/p/' in note_url:
-        print(f"♠️🌿🎸🧵 SimExp Public URL Resolution")
+        print(f"♠️🌿🎸🧵 SimExp Public URL Resolution & Write")
         print()
 
-        # Resolve public URL to internal UUID (with browser fallback)
-        uuid = resolve_public_url(note_url, cdp_url=resolved_cdp)
+        # Read from stdin if no content provided
+        if content is None:
+            print("📝 Reading content from stdin (Ctrl+D to finish)...")
+            content = sys.stdin.read()
+            if not content.strip():
+                print("❌ No content provided")
+                return
 
-        if not uuid:
-            return
+        # Write directly to the note using browser navigation
+        success = asyncio.run(_write_to_public_note(
+            public_url=note_url,
+            content=content,
+            mode=mode,
+            cdp_url=resolved_cdp,
+            init_session=init_session,
+            ai_assistant=ai_assistant,
+            issue_number=issue_number
+        ))
 
-        resolved_uuid = uuid
-
-        # Store UUID in session.json for reuse
-        store_session_uuid(uuid)
-
-        # Convert UUID to internal editor URL
-        note_url = f'https://app.simplenote.com/n/{uuid}'
-        print(f"\n   🔗 Internal URL: {note_url}")
-        print()
-
-        # If --init-session flag provided, add session metadata to the note
-        if init_session:
-            print(f"   🔮 Initializing session metadata...")
-            asyncio.run(_add_session_metadata_to_note(
-                note_url=note_url,
-                uuid=uuid,
-                cdp_url=resolved_cdp,
-                ai_assistant=ai_assistant,
-                issue_number=issue_number
-            ))
-            print(f"   ✅ Session metadata added to note")
-            print()
+        if not success:
+            print("\n❌ Failed to write to note")
+        return
 
     # Read from stdin if no content provided
     if content is None:
@@ -1674,8 +1887,8 @@ def main():
             parser = argparse.ArgumentParser(
                 description='Write content to a Simplenote note. Automatically resolves public URLs (/p/<uuid>) to internal UUIDs.',
                 prog='simexp write')
-            parser.add_argument('content', help='The content to write. If not provided, reads from stdin.')
-            parser.add_argument('--note-url', default='https://app.simplenote.com/', help='The URL of the Simplenote note. Supports public URLs (https://app.simplenote.com/p/<uuid>) and internal URLs (https://app.simplenote.com/n/<uuid>). Defaults to the main page, which will select the most recent note.')
+            parser.add_argument('note_url', help='The URL of the Simplenote note. Supports public URLs (https://app.simplenote.com/p/<uuid>) and internal URLs (https://app.simplenote.com/n/<uuid>).')
+            parser.add_argument('content', nargs='?', default=None, help='The content to write. If not provided, reads from stdin.')
             parser.add_argument('--mode', choices=['append', 'replace'], default='append', help='Write mode.')
             parser.add_argument('--headless', action='store_true', help='Run in headless mode.')
             parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL to connect to an existing browser.')

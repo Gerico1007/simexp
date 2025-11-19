@@ -332,60 +332,56 @@ python -m simexp.simex write "Your message here" --note-url https://app.simpleno
 
 ### 🔗 Public URL Resolution (NEW!)
 
-SimExp now automatically resolves public Simplenote URLs to their internal UUIDs, enabling you to write to existing notes using their public links!
+SimExp now supports writing to notes using their public URLs! Instead of extracting UUIDs, it writes directly to opened notes following the session start pattern.
 
-**How it works (Two-Method System):**
+**How it works:**
 
-**Method 1: Embedded Link Extraction** (Fast - if link is present)
-1. Fetches the public page HTML
-2. Searches for embedded `simplenote://note/<uuid>` link
-3. Extracts UUID if found
-
-**Method 2: Browser Automation** (Automatic Fallback - Always Works!)
-1. Opens the public URL in your authenticated browser
-2. Tries multiple techniques to extract the UUID:
-   - Checks for auto-redirect to internal note
-   - Reads page DOM for simplenote:// links (may bypass HTML filtering)
-   - **Searches for the note by title** in the Simplenote app and clicks it
-3. Extracts UUID from the browser's resulting URL
-4. Stores UUID in `~/.simexp/session.json` for reuse
-5. Converts to internal editor URL and writes to the note
+1. Loads the public URL to extract note content (first 30 chars for searching)
+2. Navigates to Simplenote app
+3. Searches for the note using the extracted content
+4. Clicks the note to open it in the editor
+5. Writes content directly to the opened note
+6. Optionally initializes session metadata (if `--init-session` flag is used)
 
 **Example:**
 ```bash
 # Write to a note using its public URL
-simexp write --note-url https://app.simplenote.com/p/0ZqWsQ "Appended content"
+simexp write https://app.simplenote.com/p/0ZqWsQ "Appended content"
 
 # Output:
-# 🔍 Detecting public Simplenote URL...
-#    🌐 Public URL: https://app.simplenote.com/p/0ZqWsQ
-#    ⬇️  Fetching public page content... ✓
-#    🔎 Searching for internal Simplenote link... ✓
-#    ♻️  Resolved UUID: 76502186-4d7d-48d6-a961-80a48573b2c7
-#    🧠 Stored UUID in session.json
-#    🔗 Internal URL: https://app.simplenote.com/n/76502186-4d7d-48d6-a961-80a48573b2c7
-#
-# ✅ Content appended to internal note.
+# ♠️🌿🎸🧵 SimExp Public URL Resolution & Write
+# 🌐 Loading public note to extract search text...
+# 🔍 Search text: 'First 30 characters of note...'
+# 🌐 Navigating to Simplenote app...
+# ✅ Found search box
+# ⏳ Waiting for search results...
+# ✅ Clicking note
+# ✅ Note opened in editor
+# 📝 Appending content...
+# ✅ Content written (16 chars)
+# ✅ Write successful!
 ```
 
 **Initialize as Session Note:**
 ```bash
 # Resolve public URL and add session metadata in one command
-simexp write --note-url https://app.simplenote.com/p/0ZqWsQ "Initial content" --init-session --ai claude --issue 42
+simexp write https://app.simplenote.com/p/0ZqWsQ "Initial content" --init-session --ai claude --issue 42
 
 # This will:
-# 1. Resolve the public URL to internal UUID
-# 2. Add session metadata (YAML header) to the note
-# 3. Store session info in .simexp/session.json
-# 4. Write your content to the note
-# 5. You can now use 'simexp session write' with this note!
+# 1. Navigate to public URL and extract note content for searching
+# 2. Search for the note in Simplenote app
+# 3. Click to open the note
+# 4. Add session metadata (YAML header) to the note
+# 5. Write your content to the note
+# 6. Store session info in .simexp/session.json
+# 7. You can now use 'simexp session write' with this note!
 ```
 
 **Benefits:**
 - ✅ Write to existing notes using their public links
-- ✅ No manual UUID extraction needed
-- ✅ Seamless one-command workflow
-- ✅ UUID cached for future writes
+- ✅ No UUID extraction needed - writes directly to opened notes
+- ✅ Follows session start pattern for reliability
+- ✅ Search-based resolution works even when URLs don't change (SPA mode)
 - ✅ Optional: Turn any note into a tracked session note
 
 ### Read from a Specific Note
