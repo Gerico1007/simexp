@@ -38,16 +38,19 @@ CONFIG_FILE = os.path.expanduser('~/.simexp/simexp.yaml')
 # ♠️🌿🎸🧵 G.Music Assembly - Public to Private URL Resolution
 # ═══════════════════════════════════════════════════════════════
 
-def resolve_public_url(public_url: str) -> Optional[str]:
+def resolve_public_url(public_url: str, cdp_url: str = None) -> Optional[str]:
     """
     Resolve public Simplenote URL to internal note UUID
 
     Public URLs (https://app.simplenote.com/p/<uuid>) are read-only.
-    This function fetches the public page, extracts the internal
-    simplenote://note/<uuid> link, and returns the UUID for writing.
+    This function tries two methods to extract the internal UUID:
+
+    Method 1: Fetch public page and search for simplenote://note/<uuid> link
+    Method 2: Use browser automation to navigate and extract from app URL
 
     Args:
         public_url: Public Simplenote URL (e.g., https://app.simplenote.com/p/0ZqWsQ)
+        cdp_url: Chrome DevTools Protocol URL for browser automation fallback
 
     Returns:
         Internal note UUID (36-character UUID string) or None if not found
@@ -59,32 +62,90 @@ def resolve_public_url(public_url: str) -> Optional[str]:
     print(f"🔍 Detecting public Simplenote URL...")
     print(f"   🌐 Public URL: {public_url}")
 
-    # Fetch public page content
-    print(f"   ⬇️  Fetching public page content...", end=" ", flush=True)
+    # Method 1: Try extracting from public page HTML (if user embedded the link)
+    print(f"   ⬇️  Method 1: Fetching public page content...", end=" ", flush=True)
     content = fetch_content(public_url)
 
-    if not content:
-        print("❌")
-        print(f"   ⚠️  Failed to fetch public page")
-        return None
-
-    print("✓")
-
-    # Extract internal UUID using regex
-    # Pattern: simplenote://note/76502186-4d7d-48d6-a961-80a48573b2c7
-    print(f"   🔎 Searching for internal Simplenote link...", end=" ", flush=True)
-    pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
-    match = re.search(pattern, content)
-
-    if match:
-        uuid = match.group(1)
+    if content:
         print("✓")
-        print(f"   ♻️  Resolved UUID: {uuid}")
-        return uuid
+        print(f"   🔎 Searching for embedded simplenote:// link...", end=" ", flush=True)
+        # Pattern: simplenote://note/76502186-4d7d-48d6-a961-80a48573b2c7
+        pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+        match = re.search(pattern, content)
+
+        if match:
+            uuid = match.group(1)
+            print("✓")
+            print(f"   ♻️  Resolved UUID: {uuid}")
+            return uuid
+        else:
+            print("❌")
     else:
         print("❌")
-        print(f"   ⚠️  No internal Simplenote link found in public page")
-        print(f"   💡 Make sure the note contains a simplenote://note/<uuid> link")
+
+    # Method 2: Use browser automation to navigate from public URL
+    print(f"   🌐 Method 2: Using browser navigation...", end=" ", flush=True)
+
+    try:
+        resolved_cdp = get_cdp_url(cdp_url)
+        uuid = asyncio.run(_resolve_via_browser(public_url, resolved_cdp))
+
+        if uuid:
+            print("✓")
+            print(f"   ♻️  Resolved UUID: {uuid}")
+            return uuid
+        else:
+            print("❌")
+    except Exception as e:
+        print("❌")
+        print(f"   ⚠️  Browser navigation failed: {e}")
+
+    print(f"\n   ⚠️  Could not resolve public URL to internal UUID")
+    print(f"   💡 Tip: Add the internal link to your note:")
+    print(f"   💡 1. Open the note in Simplenote app")
+    print(f"   💡 2. Copy the internal link (simplenote://note/<uuid>)")
+    print(f"   💡 3. Paste it anywhere in the note content")
+    return None
+
+
+async def _resolve_via_browser(public_url: str, cdp_url: str) -> Optional[str]:
+    """
+    Resolve public URL by navigating in authenticated browser
+
+    This opens the public URL in the browser, which should redirect to
+    the internal note if the user is logged in.
+
+    Args:
+        public_url: Public Simplenote URL
+        cdp_url: Chrome DevTools Protocol URL
+
+    Returns:
+        Internal note UUID or None
+    """
+    async with SimplenoteWriter(
+        note_url=public_url,
+        headless=False,
+        debug=False,
+        cdp_url=cdp_url
+    ) as writer:
+        # Navigate to public URL
+        await writer.page.goto(public_url)
+        await asyncio.sleep(2)  # Wait for potential redirect
+
+        # Check if we're now on an internal note URL
+        current_url = writer.page.url
+
+        # Pattern: https://app.simplenote.com/n/76502186-4d7d-48d6-a961-80a48573b2c7
+        # or https://app.simplenote.com/note/76502186-4d7d-48d6-a961-80a48573b2c7
+        pattern = r'/(?:n|note)/([0-9a-fA-F-]{36})'
+        match = re.search(pattern, current_url)
+
+        if match:
+            return match.group(1)
+
+        # If no redirect, try clicking "Edit" or similar button
+        # (This would require more investigation of the Simplenote UI)
+
         return None
 
 
@@ -420,12 +481,10 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
         print(f"♠️🌿🎸🧵 SimExp Public URL Resolution")
         print()
 
-        # Resolve public URL to internal UUID
-        uuid = resolve_public_url(note_url)
+        # Resolve public URL to internal UUID (with browser fallback)
+        uuid = resolve_public_url(note_url, cdp_url=resolved_cdp)
 
         if not uuid:
-            print(f"\n❌ Could not resolve public URL to internal UUID")
-            print(f"💡 Make sure the note contains a simplenote://note/<uuid> link")
             return
 
         # Store UUID in session.json for reuse
@@ -433,7 +492,7 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
 
         # Convert UUID to internal editor URL
         note_url = f'https://app.simplenote.com/n/{uuid}'
-        print(f"   🔗 Internal URL: {note_url}")
+        print(f"\n   🔗 Internal URL: {note_url}")
         print()
 
     # Read from stdin if no content provided
