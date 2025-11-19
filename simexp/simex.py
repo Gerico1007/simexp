@@ -110,10 +110,12 @@ def resolve_public_url(public_url: str, cdp_url: str = None) -> Optional[str]:
 
 async def _resolve_via_browser(public_url: str, cdp_url: str) -> Optional[str]:
     """
-    Resolve public URL by navigating in authenticated browser
+    Resolve public URL by navigating in authenticated browser and reading page content
 
-    This opens the public URL in the browser, which should redirect to
-    the internal note if the user is logged in.
+    This opens the public URL in the browser and:
+    1. Checks for auto-redirect to internal note
+    2. Searches page content for simplenote:// links
+    3. Tries to navigate to Simplenote app to search for the note
 
     Args:
         public_url: Public Simplenote URL
@@ -143,8 +145,71 @@ async def _resolve_via_browser(public_url: str, cdp_url: str) -> Optional[str]:
         if match:
             return match.group(1)
 
-        # If no redirect, try clicking "Edit" or similar button
-        # (This would require more investigation of the Simplenote UI)
+        # Method 2a: Try to read page content for simplenote:// link
+        # (The link might be visible in the DOM even if filtered from HTML source)
+        try:
+            page_content = await writer.page.content()
+            simplenote_pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+            match = re.search(simplenote_pattern, page_content)
+            if match:
+                return match.group(1)
+        except:
+            pass
+
+        # Method 2b: Try to find the note by its title in the main Simplenote app
+        try:
+            # Get the note title from the public page
+            title_element = await writer.page.query_selector('title')
+            if title_element:
+                title = await title_element.text_content()
+                title = title.strip()
+
+                # Navigate to main Simplenote app
+                await writer.page.goto('https://app.simplenote.com/')
+                await asyncio.sleep(2)
+
+                # Search for the note by title
+                search_selectors = [
+                    'input[placeholder*="Search"]',
+                    'input[type="search"]',
+                    '.search-field',
+                    '[data-search-input]'
+                ]
+
+                for selector in search_selectors:
+                    try:
+                        search_box = await writer.page.wait_for_selector(selector, timeout=2000)
+                        if search_box:
+                            # Type the title to search
+                            await search_box.click()
+                            await search_box.fill(title)
+                            await asyncio.sleep(1)
+
+                            # Click the first result
+                            first_note_selectors = [
+                                '.note-list-item:first-child',
+                                '[data-note-id]',
+                                '.note-preview:first-child'
+                            ]
+
+                            for note_selector in first_note_selectors:
+                                try:
+                                    first_note = await writer.page.wait_for_selector(note_selector, timeout=2000)
+                                    if first_note:
+                                        await first_note.click()
+                                        await asyncio.sleep(1)
+
+                                        # Check if URL changed to internal note
+                                        current_url = writer.page.url
+                                        match = re.search(pattern, current_url)
+                                        if match:
+                                            return match.group(1)
+                                except:
+                                    continue
+                    except:
+                        continue
+        except:
+            pass
 
         return None
 

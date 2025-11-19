@@ -334,11 +334,22 @@ python -m simexp.simex write "Your message here" --note-url https://app.simpleno
 
 SimExp now automatically resolves public Simplenote URLs to their internal UUIDs, enabling you to write to existing notes using their public links!
 
-**How it works:**
-1. You provide a public URL (`https://app.simplenote.com/p/0ZqWsQ`)
-2. SimExp fetches the public page and extracts the internal `simplenote://note/<uuid>` link
-3. The UUID is stored in `~/.simexp/session.json` for reuse
-4. SimExp converts it to an internal editor URL and writes to the note
+**How it works (Two-Method System):**
+
+**Method 1: Embedded Link Extraction** (Fast - if link is present)
+1. Fetches the public page HTML
+2. Searches for embedded `simplenote://note/<uuid>` link
+3. Extracts UUID if found
+
+**Method 2: Browser Automation** (Automatic Fallback - Always Works!)
+1. Opens the public URL in your authenticated browser
+2. Tries multiple techniques to extract the UUID:
+   - Checks for auto-redirect to internal note
+   - Reads page DOM for simplenote:// links (may bypass HTML filtering)
+   - **Searches for the note by title** in the Simplenote app and clicks it
+3. Extracts UUID from the browser's resulting URL
+4. Stores UUID in `~/.simexp/session.json` for reuse
+5. Converts to internal editor URL and writes to the note
 
 **Example:**
 ```bash
