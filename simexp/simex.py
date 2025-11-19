@@ -593,6 +593,12 @@ async def _write_to_public_note(
                     if debug:
                         print(f"   ⚠️  Could not extract note UUID, will generate session UUID instead")
 
+            # Close the ellipsis menu before writing (press Escape)
+            if debug:
+                print(f"🔙 Closing menu...")
+            await writer.page.keyboard.press('Escape')
+            await asyncio.sleep(0.5)
+
             # Step 6: Write session metadata if requested (like session start)
             if init_session:
                 from .session_manager import generate_html_metadata
