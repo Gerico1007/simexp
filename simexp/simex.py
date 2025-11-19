@@ -215,9 +215,9 @@ async def _resolve_via_browser(public_url: str, cdp_url: str, debug: bool = True
                                             if debug:
                                                 print(f"   🖱️  Clicking first result: {note_selector}")
                                             await first_note.click()
-                                            await asyncio.sleep(1.5)  # Wait for note to open
+                                            await asyncio.sleep(2)  # Wait for note to open in SPA
 
-                                            # Check if URL changed to internal note
+                                            # Check if URL changed to internal note (might not in SPA)
                                             current_url = writer.page.url
                                             if debug:
                                                 print(f"   📍 Current URL: {current_url}")
@@ -226,6 +226,83 @@ async def _resolve_via_browser(public_url: str, cdp_url: str, debug: bool = True
                                                 if debug:
                                                     print(f"   ✅ Found UUID in URL!")
                                                 return match.group(1)
+
+                                            # SPA mode: Try to extract UUID from page elements
+                                            if debug:
+                                                print(f"   🔍 URL didn't change (SPA mode), searching page DOM...")
+
+                                            # Method 1: Try to click "Copy Internal Link" button
+                                            try:
+                                                copy_link_selectors = [
+                                                    'button:has-text("Copy Internal Link")',
+                                                    'button.button-borderless:has-text("Copy")',
+                                                    '[aria-label*="Copy Internal Link"]',
+                                                    'button:has-text("Internal Link")'
+                                                ]
+
+                                                for copy_selector in copy_link_selectors:
+                                                    try:
+                                                        copy_button = await writer.page.wait_for_selector(copy_selector, timeout=1000)
+                                                        if copy_button:
+                                                            if debug:
+                                                                print(f"   📋 Found 'Copy Internal Link' button: {copy_selector}")
+                                                            await copy_button.click()
+                                                            await asyncio.sleep(0.5)
+
+                                                            # Read from clipboard
+                                                            try:
+                                                                import pyperclip
+                                                                clipboard_content = pyperclip.paste()
+                                                                if debug:
+                                                                    print(f"   📋 Clipboard: {clipboard_content}")
+
+                                                                # Extract UUID from clipboard
+                                                                simplenote_pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+                                                                match = re.search(simplenote_pattern, clipboard_content)
+                                                                if match:
+                                                                    if debug:
+                                                                        print(f"   ✅ Extracted UUID from clipboard!")
+                                                                    return match.group(1)
+                                                            except Exception as e:
+                                                                if debug:
+                                                                    print(f"   ⚠️  Clipboard read failed: {e}")
+                                                    except:
+                                                        continue
+                                            except Exception as e:
+                                                if debug:
+                                                    print(f"   ⚠️  Copy button not found: {e}")
+
+                                            # Method 2: Search for UUID in page HTML/DOM
+                                            try:
+                                                page_html = await writer.page.content()
+
+                                                # Try different UUID patterns in the page
+                                                uuid_patterns = [
+                                                    r'simplenote://note/([0-9a-fA-F-]{36})',
+                                                    r'data-note-id="([0-9a-fA-F-]{36})"',
+                                                    r'note[/-]([0-9a-fA-F-]{36})',
+                                                    r'"id":"([0-9a-fA-F-]{36})"',
+                                                    r'([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
+                                                ]
+
+                                                for uuid_pattern in uuid_patterns:
+                                                    match = re.search(uuid_pattern, page_html)
+                                                    if match:
+                                                        uuid_candidate = match.group(1)
+                                                        if debug:
+                                                            print(f"   ✅ Found UUID in page DOM: {uuid_candidate}")
+                                                        return uuid_candidate
+
+                                                if debug:
+                                                    print(f"   ⚠️  No UUID found in page DOM")
+                                            except Exception as e:
+                                                if debug:
+                                                    print(f"   ⚠️  DOM search failed: {e}")
+
+                                            # If we got here, note opened but couldn't extract UUID
+                                            if debug:
+                                                print(f"   ⚠️  Note opened but UUID extraction failed")
+                                            break
                                     except Exception as e:
                                         if debug:
                                             print(f"   ⚠️  Selector {note_selector} failed: {e}")
