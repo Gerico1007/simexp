@@ -465,7 +465,14 @@ async def _write_to_public_note(
 
                 # First, try to open the note actions menu/panel if it exists
                 menu_selectors = [
-                    'button.note-toolbar-button',  # Generic toolbar button
+                    # SVG-based ellipsis icon (three dots menu)
+                    'button:has(.icon-ellipsis-outline)',
+                    '.icon-ellipsis-outline',
+                    'svg.icon-ellipsis-outline',
+                    'button .icon-ellipsis-outline',
+
+                    # Other potential menu buttons
+                    'button.note-toolbar-button',
                     'button[aria-label*="More"]',
                     'button:has-text("...")',
                     '.note-toolbar .icon-ellipsis',
