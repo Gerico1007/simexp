@@ -463,16 +463,52 @@ async def _write_to_public_note(
                 if debug:
                     print(f"📋 Extracting note UUID from 'Copy Internal Link'...")
 
-                # Find and click the note actions menu or Copy Internal Link button
-                copy_link_selectors = [
-                    'button:has-text("Copy Internal Link")',
-                    'button.button-borderless:has-text("Copy")',
-                    '[aria-label*="Copy Internal Link"]',
-                    'button:has-text("Internal Link")',
-                    '.note-actions-item:has-text("Copy Internal Link")',
-                    'a:has-text("Copy Internal Link")'
+                # First, try to open the note actions menu/panel if it exists
+                menu_selectors = [
+                    'button.note-toolbar-button',  # Generic toolbar button
+                    'button[aria-label*="More"]',
+                    'button:has-text("...")',
+                    '.note-toolbar .icon-ellipsis',
+                    'button.icon-more',
+                    '.note-actions-toggle',
+                    'button.note-menu-toggle'
                 ]
 
+                for menu_selector in menu_selectors:
+                    try:
+                        menu_button = await writer.page.wait_for_selector(menu_selector, timeout=1000)
+                        if menu_button:
+                            if debug:
+                                print(f"   🔍 Found potential menu button: {menu_selector}")
+                            await menu_button.click()
+                            await asyncio.sleep(0.5)
+                            break
+                    except:
+                        continue
+
+                # Now try to find and click the Copy Internal Link button
+                # Try multiple approaches with more specific and generic selectors
+                copy_link_selectors = [
+                    # Text-based selectors (most reliable)
+                    '*:has-text("Copy Internal Link")',
+                    'button:has-text("Copy Internal Link")',
+                    'a:has-text("Copy Internal Link")',
+                    'label:has-text("Copy Internal Link")',
+
+                    # Class-based selectors
+                    'button.button-borderless:has-text("Copy")',
+                    '.note-actions-item:has-text("Internal")',
+
+                    # Aria labels
+                    '[aria-label*="Copy Internal Link"]',
+                    '[aria-label*="Internal Link"]',
+
+                    # Partial text matches
+                    'button:has-text("Internal Link")',
+                    '*:has-text("Internal Link")'
+                ]
+
+                copy_button_found = False
                 for copy_selector in copy_link_selectors:
                     try:
                         copy_button = await writer.page.wait_for_selector(copy_selector, timeout=2000)
@@ -496,6 +532,7 @@ async def _write_to_public_note(
                                     note_uuid = match.group(1)
                                     if debug:
                                         print(f"   ✅ Extracted note UUID: {note_uuid}")
+                                    copy_button_found = True
                                     break
                                 else:
                                     if debug:
@@ -503,8 +540,41 @@ async def _write_to_public_note(
                             except Exception as e:
                                 if debug:
                                     print(f"   ⚠️  Clipboard read failed: {e}")
-                    except:
+                    except Exception as e:
+                        if debug:
+                            print(f"   🔍 Selector '{copy_selector}' not found")
                         continue
+
+                if not note_uuid and not copy_button_found:
+                    # Last resort: try to get all visible text elements and search for "Internal Link"
+                    if debug:
+                        print(f"   🔍 Searching for any elements containing 'Internal Link'...")
+                    try:
+                        # Get page content to debug
+                        all_buttons = await writer.page.query_selector_all('button, a, label, span')
+                        for btn in all_buttons[:50]:  # Check first 50 elements
+                            try:
+                                text = await btn.text_content()
+                                if text and 'internal' in text.lower() and 'link' in text.lower():
+                                    if debug:
+                                        print(f"   📍 Found element with text: '{text.strip()}'")
+                                    await btn.click()
+                                    await asyncio.sleep(0.5)
+
+                                    # Try clipboard
+                                    import pyperclip
+                                    clipboard_content = pyperclip.paste()
+                                    simplenote_pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+                                    match = re.search(simplenote_pattern, clipboard_content)
+                                    if match:
+                                        note_uuid = match.group(1)
+                                        if debug:
+                                            print(f"   ✅ Extracted note UUID: {note_uuid}")
+                                        break
+                            except:
+                                continue
+                    except:
+                        pass
 
                 if not note_uuid:
                     if debug:
