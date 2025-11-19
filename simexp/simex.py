@@ -636,13 +636,13 @@ async def _write_to_public_note(
                 await writer.page.keyboard.type(metadata, delay=0)
                 await asyncio.sleep(1)
 
-                # Save session data (using note UUID and search key)
+                # Save session data (using note UUID as search key)
                 from .session_manager import SessionState
                 session_state = SessionState()
                 session_data = {
                     'session_id': session_id,
                     'note_uuid': note_uuid,  # Store the actual note UUID
-                    'search_key': search_text,  # Use search text to find note later
+                    'search_key': session_id,  # Use UUID to find note later (same as session_id)
                     'public_url': public_url,  # Store public URL for reference
                     'ai_assistant': ai_assistant,
                     'issue_number': issue_number,
