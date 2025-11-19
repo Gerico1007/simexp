@@ -368,11 +368,25 @@ simexp write --note-url https://app.simplenote.com/p/0ZqWsQ "Appended content"
 # ✅ Content appended to internal note.
 ```
 
+**Initialize as Session Note:**
+```bash
+# Resolve public URL and add session metadata in one command
+simexp write --note-url https://app.simplenote.com/p/0ZqWsQ "Initial content" --init-session --ai claude --issue 42
+
+# This will:
+# 1. Resolve the public URL to internal UUID
+# 2. Add session metadata (YAML header) to the note
+# 3. Store session info in .simexp/session.json
+# 4. Write your content to the note
+# 5. You can now use 'simexp session write' with this note!
+```
+
 **Benefits:**
 - ✅ Write to existing notes using their public links
 - ✅ No manual UUID extraction needed
 - ✅ Seamless one-command workflow
 - ✅ UUID cached for future writes
+- ✅ Optional: Turn any note into a tracked session note
 
 ### Read from a Specific Note
 

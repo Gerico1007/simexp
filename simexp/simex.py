@@ -324,6 +324,70 @@ async def _resolve_via_browser(public_url: str, cdp_url: str, debug: bool = True
         return None
 
 
+async def _add_session_metadata_to_note(note_url: str, uuid: str, cdp_url: str, ai_assistant: str = 'claude', issue_number: Optional[int] = None) -> None:
+    """
+    Add session metadata to an existing note (like session start does)
+
+    Args:
+        note_url: Internal Simplenote note URL
+        uuid: Note UUID
+        cdp_url: Chrome DevTools Protocol URL
+        ai_assistant: AI assistant name
+        issue_number: GitHub issue number
+    """
+    from .session_manager import generate_html_metadata
+
+    # Generate session ID
+    import uuid as uuid_module
+    session_id = str(uuid_module.uuid4())
+
+    # Generate metadata
+    metadata = generate_html_metadata(
+        session_id=session_id,
+        ai_assistant=ai_assistant,
+        issue_number=issue_number
+    )
+
+    # Write metadata to the beginning of the note
+    async with SimplenoteWriter(
+        note_url=note_url,
+        headless=False,
+        debug=False,
+        cdp_url=cdp_url
+    ) as writer:
+        await writer.page.goto(note_url)
+        await asyncio.sleep(1.5)
+
+        # Click into editor
+        editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
+        await editor.click()
+        await asyncio.sleep(0.5)
+
+        # Go to beginning
+        await writer.page.keyboard.press('Control+Home')
+        await asyncio.sleep(0.3)
+
+        # Type metadata
+        await writer.page.keyboard.type(metadata, delay=10)
+
+        # Wait for autosave
+        await asyncio.sleep(2)
+
+    # Store session info in session.json
+    from .session_manager import SessionState
+    session_state = SessionState()
+    session_data = {
+        'session_id': session_id,
+        'search_key': session_id,
+        'ai_assistant': ai_assistant,
+        'issue_number': issue_number,
+        'created_at': datetime.now().isoformat(),
+        'note_uuid': uuid,
+        'note_url': note_url
+    }
+    session_state.save_session(session_data)
+
+
 def store_session_uuid(uuid: str) -> None:
     """
     Store resolved UUID in session.json for reuse
@@ -627,7 +691,7 @@ def init_config():
     print("💡 Ready to test? Run: simexp session start")
 
 
-def write_command(note_url, content=None, mode='append', headless=False, cdp_url=None):
+def write_command(note_url, content=None, mode='append', headless=False, cdp_url=None, init_session=False, ai_assistant='claude', issue_number=None):
     """
     Write content to Simplenote note via Playwright
 
@@ -640,6 +704,9 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
         mode: 'append' or 'replace'
         headless: Run browser in headless mode
         cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
+        init_session: Add session metadata to resolved note (like session start)
+        ai_assistant: AI assistant name if init_session=True
+        issue_number: GitHub issue number if init_session=True
     """
     import sys
 
@@ -650,6 +717,8 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
     # PUBLIC URL RESOLUTION - Automatic UUID extraction
     # ♠️🌿🎸🧵 G.Music Assembly - Bridge public to private
     # ═══════════════════════════════════════════════════════════════
+
+    resolved_uuid = None  # Track resolved UUID for session init
 
     # Detect public Simplenote URL pattern (/p/<uuid>)
     if '/p/' in note_url:
@@ -662,6 +731,8 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
         if not uuid:
             return
 
+        resolved_uuid = uuid
+
         # Store UUID in session.json for reuse
         store_session_uuid(uuid)
 
@@ -669,6 +740,19 @@ def write_command(note_url, content=None, mode='append', headless=False, cdp_url
         note_url = f'https://app.simplenote.com/n/{uuid}'
         print(f"\n   🔗 Internal URL: {note_url}")
         print()
+
+        # If --init-session flag provided, add session metadata to the note
+        if init_session:
+            print(f"   🔮 Initializing session metadata...")
+            asyncio.run(_add_session_metadata_to_note(
+                note_url=note_url,
+                uuid=uuid,
+                cdp_url=resolved_cdp,
+                ai_assistant=ai_assistant,
+                issue_number=issue_number
+            ))
+            print(f"   ✅ Session metadata added to note")
+            print()
 
     # Read from stdin if no content provided
     if content is None:
@@ -1596,10 +1680,22 @@ def main():
             parser.add_argument('--mode', choices=['append', 'replace'], default='append', help='Write mode.')
             parser.add_argument('--headless', action='store_true', help='Run in headless mode.')
             parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL to connect to an existing browser.')
+            parser.add_argument('--init-session', action='store_true', help='Initialize session metadata in resolved note (adds YAML header like session start).')
+            parser.add_argument('--ai', default='claude', choices=['claude', 'gemini'], help='AI assistant name (used with --init-session).')
+            parser.add_argument('--issue', type=int, default=None, help='GitHub issue number (used with --init-session).')
 
             args = parser.parse_args(sys.argv[2:])
 
-            write_command(args.note_url, args.content, mode=args.mode, headless=args.headless, cdp_url=args.cdp_url)
+            write_command(
+                args.note_url,
+                args.content,
+                mode=args.mode,
+                headless=args.headless,
+                cdp_url=args.cdp_url,
+                init_session=args.init_session,
+                ai_assistant=args.ai,
+                issue_number=args.issue
+            )
 
         elif command == 'read':
             # Usage: simexp read <note_url>
