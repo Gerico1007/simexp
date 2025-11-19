@@ -217,6 +217,7 @@ async def _resolve_via_browser(public_url: str, cdp_url: str, debug: bool = True
                                             await first_note.click()
                                             await asyncio.sleep(2)  # Wait for note to open in SPA
 
+                                            # Note is now open in editor - extract UUID from the open note
                                             # Check if URL changed to internal note (might not in SPA)
                                             current_url = writer.page.url
                                             if debug:
@@ -227,11 +228,35 @@ async def _resolve_via_browser(public_url: str, cdp_url: str, debug: bool = True
                                                     print(f"   ✅ Found UUID in URL!")
                                                 return match.group(1)
 
-                                            # SPA mode: Try to extract UUID from page elements
+                                            # SPA mode: Note is open, extract UUID from editor content
                                             if debug:
-                                                print(f"   🔍 URL didn't change (SPA mode), searching page DOM...")
+                                                print(f"   🔍 URL didn't change (SPA mode), reading note content...")
 
-                                            # Method 1: Try to click "Copy Internal Link" button
+                                            # Method 1: Read the note content for simplenote:// link
+                                            try:
+                                                # The note is already open in the editor
+                                                editor = await writer.page.wait_for_selector('div.note-editor, .note-content-editor', timeout=2000)
+                                                if editor:
+                                                    editor_content = await editor.text_content()
+
+                                                    # Search for simplenote:// link in the content
+                                                    simplenote_pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+                                                    match = re.search(simplenote_pattern, editor_content)
+                                                    if match:
+                                                        uuid_candidate = match.group(1)
+                                                        if debug:
+                                                            print(f"   ✅ Found UUID in note content: {uuid_candidate}")
+                                                        return uuid_candidate
+                                                    else:
+                                                        if debug:
+                                                            print(f"   ⚠️  No simplenote:// link found in note content")
+                                            except Exception as e:
+                                                if debug:
+                                                    print(f"   ⚠️  Failed to read editor content: {e}")
+
+                                            # Method 2: Try to click "Copy Internal Link" button
+                                            if debug:
+                                                print(f"   📋 Looking for 'Copy Internal Link' button...")
                                             try:
                                                 copy_link_selectors = [
                                                     'button:has-text("Copy Internal Link")',
@@ -272,36 +297,10 @@ async def _resolve_via_browser(public_url: str, cdp_url: str, debug: bool = True
                                                 if debug:
                                                     print(f"   ⚠️  Copy button not found: {e}")
 
-                                            # Method 2: Search for UUID in page HTML/DOM
-                                            try:
-                                                page_html = await writer.page.content()
-
-                                                # Try different UUID patterns in the page
-                                                uuid_patterns = [
-                                                    r'simplenote://note/([0-9a-fA-F-]{36})',
-                                                    r'data-note-id="([0-9a-fA-F-]{36})"',
-                                                    r'note[/-]([0-9a-fA-F-]{36})',
-                                                    r'"id":"([0-9a-fA-F-]{36})"',
-                                                    r'([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
-                                                ]
-
-                                                for uuid_pattern in uuid_patterns:
-                                                    match = re.search(uuid_pattern, page_html)
-                                                    if match:
-                                                        uuid_candidate = match.group(1)
-                                                        if debug:
-                                                            print(f"   ✅ Found UUID in page DOM: {uuid_candidate}")
-                                                        return uuid_candidate
-
-                                                if debug:
-                                                    print(f"   ⚠️  No UUID found in page DOM")
-                                            except Exception as e:
-                                                if debug:
-                                                    print(f"   ⚠️  DOM search failed: {e}")
-
                                             # If we got here, note opened but couldn't extract UUID
                                             if debug:
                                                 print(f"   ⚠️  Note opened but UUID extraction failed")
+                                                print(f"   💡 Tip: Add simplenote://note/<uuid> link to your note content")
                                             break
                                     except Exception as e:
                                         if debug:
