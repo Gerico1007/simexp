@@ -495,25 +495,28 @@ async def _write_to_public_note(
                         continue
 
                 # Now try to find and click the Copy Internal Link button
-                # Try multiple approaches with more specific and generic selectors
+                # Based on note-actions-panel structure: <label class="note-actions-item">
                 copy_link_selectors = [
-                    # Text-based selectors (most reliable)
+                    # Specific structure-based selectors (highest priority)
+                    'label.note-actions-item:has-text("Copy Internal Link")',
+                    '.note-actions-item:has-text("Copy Internal Link")',
+                    'label.note-actions-item:has-text("Internal Link")',
+                    '.note-actions-name:has-text("Copy Internal Link")',
+
+                    # Generic text-based selectors (fallback)
+                    'label:has-text("Copy Internal Link")',
                     '*:has-text("Copy Internal Link")',
                     'button:has-text("Copy Internal Link")',
                     'a:has-text("Copy Internal Link")',
-                    'label:has-text("Copy Internal Link")',
-
-                    # Class-based selectors
-                    'button.button-borderless:has-text("Copy")',
-                    '.note-actions-item:has-text("Internal")',
-
-                    # Aria labels
-                    '[aria-label*="Copy Internal Link"]',
-                    '[aria-label*="Internal Link"]',
 
                     # Partial text matches
+                    'label:has-text("Internal Link")',
                     'button:has-text("Internal Link")',
-                    '*:has-text("Internal Link")'
+                    '*:has-text("Internal Link")',
+
+                    # Aria labels (least likely)
+                    '[aria-label*="Copy Internal Link"]',
+                    '[aria-label*="Internal Link"]'
                 ]
 
                 copy_button_found = False
