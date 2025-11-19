@@ -488,7 +488,8 @@ async def _write_to_public_note(
                             if debug:
                                 print(f"   🔍 Found potential menu button: {menu_selector}")
                             await menu_button.click()
-                            await asyncio.sleep(0.5)
+                            # Wait 2 seconds for menu to open and render
+                            await asyncio.sleep(2)
                             break
                     except:
                         continue
@@ -523,7 +524,8 @@ async def _write_to_public_note(
                             if debug:
                                 print(f"   ✅ Found 'Copy Internal Link' button: {copy_selector}")
                             await copy_button.click()
-                            await asyncio.sleep(0.5)
+                            # Wait 2 seconds for clipboard to update
+                            await asyncio.sleep(2)
 
                             # Read from clipboard
                             try:
@@ -566,7 +568,8 @@ async def _write_to_public_note(
                                     if debug:
                                         print(f"   📍 Found element with text: '{text.strip()}'")
                                     await btn.click()
-                                    await asyncio.sleep(0.5)
+                                    # Wait 2 seconds for clipboard to update
+                                    await asyncio.sleep(2)
 
                                     # Try clipboard
                                     import pyperclip
