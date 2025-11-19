@@ -457,16 +457,73 @@ async def _write_to_public_note(
             if debug:
                 print(f"✅ Note opened in editor")
 
-            # Step 5: Write session metadata if requested (like session start)
+            # Step 5: Extract note UUID by clicking "Copy Internal Link" button
+            note_uuid = None
+            if init_session or debug:
+                if debug:
+                    print(f"📋 Extracting note UUID from 'Copy Internal Link'...")
+
+                # Find and click the note actions menu or Copy Internal Link button
+                copy_link_selectors = [
+                    'button:has-text("Copy Internal Link")',
+                    'button.button-borderless:has-text("Copy")',
+                    '[aria-label*="Copy Internal Link"]',
+                    'button:has-text("Internal Link")',
+                    '.note-actions-item:has-text("Copy Internal Link")',
+                    'a:has-text("Copy Internal Link")'
+                ]
+
+                for copy_selector in copy_link_selectors:
+                    try:
+                        copy_button = await writer.page.wait_for_selector(copy_selector, timeout=2000)
+                        if copy_button:
+                            if debug:
+                                print(f"   ✅ Found 'Copy Internal Link' button: {copy_selector}")
+                            await copy_button.click()
+                            await asyncio.sleep(0.5)
+
+                            # Read from clipboard
+                            try:
+                                import pyperclip
+                                clipboard_content = pyperclip.paste()
+                                if debug:
+                                    print(f"   📋 Clipboard: {clipboard_content}")
+
+                                # Extract UUID from clipboard (simplenote://note/<uuid>)
+                                simplenote_pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+                                match = re.search(simplenote_pattern, clipboard_content)
+                                if match:
+                                    note_uuid = match.group(1)
+                                    if debug:
+                                        print(f"   ✅ Extracted note UUID: {note_uuid}")
+                                    break
+                                else:
+                                    if debug:
+                                        print(f"   ⚠️  No UUID found in clipboard content")
+                            except Exception as e:
+                                if debug:
+                                    print(f"   ⚠️  Clipboard read failed: {e}")
+                    except:
+                        continue
+
+                if not note_uuid:
+                    if debug:
+                        print(f"   ⚠️  Could not extract note UUID, will generate session UUID instead")
+
+            # Step 6: Write session metadata if requested (like session start)
             if init_session:
                 from .session_manager import generate_html_metadata
-                import uuid as uuid_module
 
-                # Generate session ID
-                session_id = str(uuid_module.uuid4())
-
-                if debug:
-                    print(f"🔮 Initializing session: {session_id}")
+                # Use note UUID as session_id if available, otherwise generate one
+                if note_uuid:
+                    session_id = note_uuid
+                    if debug:
+                        print(f"🔮 Using note UUID as session ID: {session_id}")
+                else:
+                    import uuid as uuid_module
+                    session_id = str(uuid_module.uuid4())
+                    if debug:
+                        print(f"🔮 Generating new session ID: {session_id}")
 
                 # Generate metadata
                 metadata = generate_html_metadata(
@@ -490,11 +547,12 @@ async def _write_to_public_note(
                 await writer.page.keyboard.type(metadata, delay=0)
                 await asyncio.sleep(1)
 
-                # Save session data (using public URL as search key)
+                # Save session data (using note UUID and search key)
                 from .session_manager import SessionState
                 session_state = SessionState()
                 session_data = {
                     'session_id': session_id,
+                    'note_uuid': note_uuid,  # Store the actual note UUID
                     'search_key': search_text,  # Use search text to find note later
                     'public_url': public_url,  # Store public URL for reference
                     'ai_assistant': ai_assistant,
