@@ -43,7 +43,7 @@ async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_
 
     try:
         # ⚡ FIX Issue #24: Create writer context to get page object for search_and_select_note
-        async with SimplenoteWriter(cdp_url=cdp_url) as writer:
+        async with SimplenoteWriter(note_url='https://app.simplenote.com/', cdp_url=cdp_url) as writer:
             # Navigate to Simplenote
             print(f"🌐 Adding File to Session Note")
             print(f"🔮 Session: {session['session_id']}")
