@@ -1174,7 +1174,7 @@ def read_command(note_url, headless=True):
 # ♠️🌿🎸🧵 G.Music Assembly - Session-Aware Notes
 # ═══════════════════════════════════════════════════════════════
 
-def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None, post_write_delay=3.0):
+def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None, post_write_delay=3.0, init_file=None, init_heading=None):
     """
     Start a new session and create a Simplenote note for it
 
@@ -1183,6 +1183,8 @@ def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None
         issue_number: GitHub issue number being worked on
         cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
         post_write_delay: Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)
+        init_file: Optional file path to initialize session with
+        init_heading: Optional heading to add before the file content
     """
     # Resolve CDP URL using priority chain (Issue #11)
     resolved_cdp = get_cdp_url(cdp_url)
@@ -1207,7 +1209,13 @@ def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None
     print(f"🔑 Search Key: {session_data['search_key']}")
     print()
     print(f"💡 This session is active for: {current_dir}")
-    print(f"💡 Tip: Use 'simexp session write' to add content to your session note")
+
+    # Initialize with file if provided
+    if init_file:
+        print(f"\n📄 Initializing session with file: {init_file}")
+        asyncio.run(handle_session_add(init_file, heading=init_heading, cdp_url=resolved_cdp))
+    else:
+        print(f"💡 Tip: Use 'simexp session write' to add content to your session note")
 
 
 def session_add_command(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None):
@@ -2073,7 +2081,7 @@ def main():
                 print("♠️🌿🎸🧵 SimExp Session Management")
                 print("\nUsage: simexp session <subcommand>")
                 print("\nSession Management:")
-                print("  start [--ai <assistant>] [--issue <number>] [--delay <seconds>]  - Start new session")
+                print("  start [file] [--ai <assistant>] [--issue <number>] [--delay <seconds>]  - Start new session (optionally initialize with file)")
                 print("  list                                         - List all sessions (directory tree)")
                 print("  info                                         - Show current session & directory context")
                 print("  clear                                        - Clear active session")
@@ -2091,6 +2099,7 @@ def main():
                 print("  publish                                      - Publish note (get public URL)")
                 print("\nExamples:")
                 print("  simexp session start --ai claude --issue 42  # Start new session")
+                print("  simexp session start TEST_COMMANDS.md        # Start with file")
                 print("  simexp session write 'Progress update'       # Write to session")
                 print("  simexp session collab ♠                      # Share with Nyro")
                 print("  simexp session collab assembly               # Share with all Assembly")
@@ -2104,7 +2113,7 @@ def main():
                 print("♠️🌿🎸🧵 SimExp Session Management")
                 print("\nUsage: simexp session <subcommand>")
                 print("\nSession Management:")
-                print("  start [--ai <assistant>] [--issue <number>] [--delay <seconds>]  - Start new session")
+                print("  start [file] [--ai <assistant>] [--issue <number>] [--delay <seconds>]  - Start new session (optionally initialize with file)")
                 print("  list                                         - List all sessions (directory tree)")
                 print("  info                                         - Show current session & directory context")
                 print("  clear                                        - Clear active session")
@@ -2122,6 +2131,7 @@ def main():
                 print("  publish                                      - Publish note (get public URL)")
                 print("\nExamples:")
                 print("  simexp session start --ai claude --issue 42  # Start new session")
+                print("  simexp session start TEST_COMMANDS.md        # Start with file")
                 print("  simexp session write 'Progress update'       # Write to session")
                 print("  simexp session collab ♠                      # Share with Nyro")
                 print("  simexp session collab assembly               # Share with all Assembly")
@@ -2133,13 +2143,15 @@ def main():
                 parser = argparse.ArgumentParser(
                     description='Start a new session',
                     prog='simexp session start')
+                parser.add_argument('file', nargs='?', default=None, help='Optional file to initialize session with')
                 parser.add_argument('--ai', default='claude', choices=['claude', 'gemini'], help='AI assistant name')
                 parser.add_argument('--issue', type=int, help='GitHub issue number')
                 parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
                 parser.add_argument('--delay', type=float, default=3.0, help='Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)')
+                parser.add_argument('--heading', default=None, help='Optional heading to add before the file content')
 
                 args = parser.parse_args(sys.argv[3:])
-                session_start_command(ai_assistant=args.ai, issue_number=args.issue, cdp_url=args.cdp_url, post_write_delay=args.delay)
+                session_start_command(ai_assistant=args.ai, issue_number=args.issue, cdp_url=args.cdp_url, post_write_delay=args.delay, init_file=args.file, init_heading=args.heading)
 
             elif subcommand == 'write':
                 import argparse
