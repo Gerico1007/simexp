@@ -12,12 +12,14 @@ import pyperclip
 import subprocess
 import shutil
 import time
+import re
 from .playwright_writer import write_to_note, read_from_note, SimplenoteWriter
 from .session_manager import (
     create_session_note,
     get_active_session,
     clear_active_session,
-    search_and_select_note
+    search_and_select_note,
+    SessionState
 )
 from .session_sharing import (
     publish_session_note,
@@ -30,6 +32,762 @@ from .timestamp_utils import format_timestamped_entry, insert_after_metadata
 
 # Config file in user's home directory (not package directory)
 CONFIG_FILE = os.path.expanduser('~/.simexp/simexp.yaml')
+
+# ═══════════════════════════════════════════════════════════════
+# PUBLIC URL RESOLUTION - Resolve public Simplenote URLs to internal UUIDs
+# ♠️🌿🎸🧵 G.Music Assembly - Public to Private URL Resolution
+# ═══════════════════════════════════════════════════════════════
+
+def resolve_public_url(public_url: str, cdp_url: str = None) -> Optional[str]:
+    """
+    Resolve public Simplenote URL to internal note UUID
+
+    Public URLs (https://app.simplenote.com/p/<uuid>) are read-only.
+    This function tries two methods to extract the internal UUID:
+
+    Method 1: Fetch public page and search for simplenote://note/<uuid> link
+    Method 2: Use browser automation to navigate and extract from app URL
+
+    Args:
+        public_url: Public Simplenote URL (e.g., https://app.simplenote.com/p/0ZqWsQ)
+        cdp_url: Chrome DevTools Protocol URL for browser automation fallback
+
+    Returns:
+        Internal note UUID (36-character UUID string) or None if not found
+
+    Examples:
+        >>> resolve_public_url('https://app.simplenote.com/p/0ZqWsQ')
+        '76502186-4d7d-48d6-a961-80a48573b2c7'
+    """
+    print(f"🔍 Detecting public Simplenote URL...")
+    print(f"   🌐 Public URL: {public_url}")
+
+    # Method 1: Try extracting from public page HTML (if user embedded the link)
+    print(f"   ⬇️  Method 1: Fetching public page content...", end=" ", flush=True)
+    content = fetch_content(public_url)
+
+    if content:
+        print("✓")
+        print(f"   🔎 Searching for embedded simplenote:// link...", end=" ", flush=True)
+        # Pattern: simplenote://note/76502186-4d7d-48d6-a961-80a48573b2c7
+        pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+        match = re.search(pattern, content)
+
+        if match:
+            uuid = match.group(1)
+            print("✓")
+            print(f"   ♻️  Resolved UUID: {uuid}")
+            return uuid
+        else:
+            print("❌")
+    else:
+        print("❌")
+
+    # Method 2: Use browser automation to navigate from public URL
+    print(f"   🌐 Method 2: Using browser navigation...")
+
+    try:
+        resolved_cdp = get_cdp_url(cdp_url)
+        uuid = asyncio.run(_resolve_via_browser(public_url, resolved_cdp, debug=True))
+
+        if uuid:
+            print(f"   ♻️  Resolved UUID: {uuid}")
+            return uuid
+        else:
+            print(f"   ❌ Browser navigation could not extract UUID")
+    except Exception as e:
+        print(f"   ❌ Browser navigation failed: {e}")
+
+    print(f"\n   ⚠️  Could not resolve public URL to internal UUID")
+    print(f"   💡 Tip: Add the internal link to your note:")
+    print(f"   💡 1. Open the note in Simplenote app")
+    print(f"   💡 2. Copy the internal link (simplenote://note/<uuid>)")
+    print(f"   💡 3. Paste it anywhere in the note content")
+    return None
+
+
+async def _resolve_via_browser(public_url: str, cdp_url: str, debug: bool = True) -> Optional[str]:
+    """
+    Resolve public URL by navigating in authenticated browser and reading page content
+
+    This opens the public URL in the browser and:
+    1. Checks for auto-redirect to internal note
+    2. Searches page content for simplenote:// links
+    3. Tries to navigate to Simplenote app to search for the note
+
+    Args:
+        public_url: Public Simplenote URL
+        cdp_url: Chrome DevTools Protocol URL
+        debug: Enable debug output
+
+    Returns:
+        Internal note UUID or None
+    """
+    async with SimplenoteWriter(
+        note_url=public_url,
+        headless=False,
+        debug=False,
+        cdp_url=cdp_url
+    ) as writer:
+        # Navigate to public URL
+        await writer.page.goto(public_url)
+        await asyncio.sleep(2)  # Wait for potential redirect
+
+        # Check if we're now on an internal note URL
+        current_url = writer.page.url
+
+        # Pattern: https://app.simplenote.com/n/76502186-4d7d-48d6-a961-80a48573b2c7
+        # or https://app.simplenote.com/note/76502186-4d7d-48d6-a961-80a48573b2c7
+        pattern = r'/(?:n|note)/([0-9a-fA-F-]{36})'
+        match = re.search(pattern, current_url)
+
+        if match:
+            return match.group(1)
+
+        # Method 2a: Try to read page content for simplenote:// link
+        # (The link might be visible in the DOM even if filtered from HTML source)
+        try:
+            page_content = await writer.page.content()
+            simplenote_pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+            match = re.search(simplenote_pattern, page_content)
+            if match:
+                return match.group(1)
+        except:
+            pass
+
+        # Method 2b: Try to find the note by searching its content in Simplenote app
+        try:
+            # Extract note content from the public page
+            note_content_element = await writer.page.query_selector('.note-detail-markdown, .note-content, .published-note-content')
+
+            if note_content_element:
+                # Get the text content (first few words for searching)
+                full_content = await note_content_element.text_content()
+                # Use first 20-30 characters for search (enough to be unique)
+                search_text = full_content.strip()[:30].strip()
+
+                if debug:
+                    print(f"\n   🔍 Searching by content: '{search_text}'")
+
+                if search_text:
+                    # Navigate to main Simplenote app
+                    if debug:
+                        print(f"   🌐 Navigating to Simplenote app...")
+                    await writer.page.goto('https://app.simplenote.com/')
+                    await asyncio.sleep(2)
+
+                    # Search for the note using content
+                    search_selectors = [
+                        'input[placeholder*="Search"]',
+                        'input[type="search"]',
+                        '.search-field',
+                        'input.search-bar',
+                        '[aria-label*="Search"]'
+                    ]
+
+                    for selector in search_selectors:
+                        try:
+                            search_box = await writer.page.wait_for_selector(selector, timeout=3000)
+                            if search_box:
+                                if debug:
+                                    print(f"   ⌨️  Found search box: {selector}")
+                                # Click and type the search text
+                                await search_box.click()
+                                await asyncio.sleep(0.5)
+                                await search_box.fill(search_text)
+                                if debug:
+                                    print(f"   ⏳ Waiting for search results...")
+                                await asyncio.sleep(1.5)  # Wait for search results
+
+                                # Try to click the first matching note
+                                first_note_selectors = [
+                                    '.note-list-item:first-child',
+                                    '.note-list .note:first-child',
+                                    '[role="button"].note:first-child',
+                                    'article:first-child',
+                                    '.note-preview:first-child'
+                                ]
+
+                                for note_selector in first_note_selectors:
+                                    try:
+                                        first_note = await writer.page.wait_for_selector(note_selector, timeout=2000)
+                                        if first_note:
+                                            if debug:
+                                                print(f"   🖱️  Clicking first result: {note_selector}")
+                                            await first_note.click()
+                                            await asyncio.sleep(2)  # Wait for note to open in SPA
+
+                                            # Note is now open in editor - extract UUID from the open note
+                                            # Check if URL changed to internal note (might not in SPA)
+                                            current_url = writer.page.url
+                                            if debug:
+                                                print(f"   📍 Current URL: {current_url}")
+                                            match = re.search(pattern, current_url)
+                                            if match:
+                                                if debug:
+                                                    print(f"   ✅ Found UUID in URL!")
+                                                return match.group(1)
+
+                                            # SPA mode: Note is open, extract UUID from editor content
+                                            if debug:
+                                                print(f"   🔍 URL didn't change (SPA mode), reading note content...")
+
+                                            # Method 1: Read the note content for simplenote:// link
+                                            try:
+                                                # The note is already open in the editor
+                                                editor = await writer.page.wait_for_selector('div.note-editor, .note-content-editor', timeout=2000)
+                                                if editor:
+                                                    editor_content = await editor.text_content()
+
+                                                    # Search for simplenote:// link in the content
+                                                    simplenote_pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+                                                    match = re.search(simplenote_pattern, editor_content)
+                                                    if match:
+                                                        uuid_candidate = match.group(1)
+                                                        if debug:
+                                                            print(f"   ✅ Found UUID in note content: {uuid_candidate}")
+                                                        return uuid_candidate
+                                                    else:
+                                                        if debug:
+                                                            print(f"   ⚠️  No simplenote:// link found in note content")
+                                            except Exception as e:
+                                                if debug:
+                                                    print(f"   ⚠️  Failed to read editor content: {e}")
+
+                                            # Method 2: Try to click "Copy Internal Link" button
+                                            if debug:
+                                                print(f"   📋 Looking for 'Copy Internal Link' button...")
+                                            try:
+                                                copy_link_selectors = [
+                                                    'button:has-text("Copy Internal Link")',
+                                                    'button.button-borderless:has-text("Copy")',
+                                                    '[aria-label*="Copy Internal Link"]',
+                                                    'button:has-text("Internal Link")'
+                                                ]
+
+                                                for copy_selector in copy_link_selectors:
+                                                    try:
+                                                        copy_button = await writer.page.wait_for_selector(copy_selector, timeout=1000)
+                                                        if copy_button:
+                                                            if debug:
+                                                                print(f"   📋 Found 'Copy Internal Link' button: {copy_selector}")
+                                                            await copy_button.click()
+                                                            await asyncio.sleep(0.5)
+
+                                                            # Read from clipboard
+                                                            try:
+                                                                import pyperclip
+                                                                clipboard_content = pyperclip.paste()
+                                                                if debug:
+                                                                    print(f"   📋 Clipboard: {clipboard_content}")
+
+                                                                # Extract UUID from clipboard
+                                                                simplenote_pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+                                                                match = re.search(simplenote_pattern, clipboard_content)
+                                                                if match:
+                                                                    if debug:
+                                                                        print(f"   ✅ Extracted UUID from clipboard!")
+                                                                    return match.group(1)
+                                                            except Exception as e:
+                                                                if debug:
+                                                                    print(f"   ⚠️  Clipboard read failed: {e}")
+                                                    except:
+                                                        continue
+                                            except Exception as e:
+                                                if debug:
+                                                    print(f"   ⚠️  Copy button not found: {e}")
+
+                                            # If we got here, note opened but couldn't extract UUID
+                                            if debug:
+                                                print(f"   ⚠️  Note opened but UUID extraction failed")
+                                                print(f"   💡 Tip: Add simplenote://note/<uuid> link to your note content")
+                                            break
+                                    except Exception as e:
+                                        if debug:
+                                            print(f"   ⚠️  Selector {note_selector} failed: {e}")
+                                        continue
+
+                                # If we got here, found search box but couldn't extract UUID
+                                break
+                        except Exception as e:
+                            if debug:
+                                print(f"   ⚠️  Search selector {selector} failed: {e}")
+                            continue
+            else:
+                if debug:
+                    print(f"   ⚠️  Could not find note content element on public page")
+        except Exception as e:
+            if debug:
+                print(f"   ⚠️  Browser search failed: {e}")
+
+        return None
+
+
+async def _write_to_public_note(
+    public_url: str,
+    content: str,
+    mode: str,
+    cdp_url: str,
+    init_session: bool = False,
+    ai_assistant: str = 'claude',
+    issue_number: Optional[int] = None,
+    debug: bool = True
+) -> bool:
+    """
+    Write to a public note by opening it and writing directly
+
+    This matches the session start pattern:
+    1. Navigate to Simplenote app
+    2. Search for note by content
+    3. Click note to open it
+    4. If init_session: Write metadata directly to the open note
+    5. Write user content directly to the open note
+    6. Save session data with search key
+
+    Args:
+        public_url: Public Simplenote URL (e.g., https://app.simplenote.com/p/0ZqWsQ)
+        content: Content to write
+        mode: 'append' or 'replace'
+        cdp_url: Chrome DevTools Protocol URL
+        init_session: Add session metadata to note
+        ai_assistant: AI assistant name if init_session=True
+        issue_number: GitHub issue number if init_session=True
+        debug: Enable debug output
+
+    Returns:
+        True if successful
+    """
+    try:
+        async with SimplenoteWriter(
+            note_url=public_url,
+            headless=False,
+            debug=False,
+            cdp_url=cdp_url
+        ) as writer:
+            # Step 1: Navigate to public URL to get note content for searching
+            if debug:
+                print(f"🌐 Loading public note to extract search text...")
+            await writer.page.goto(public_url)
+            await asyncio.sleep(2)
+
+            # Extract note content from the public page
+            note_content_element = await writer.page.query_selector('.note-detail-markdown, .note-content, .published-note-content')
+
+            if not note_content_element:
+                print("❌ Could not find note content on public page")
+                return False
+
+            # Get the text content (first few words for searching)
+            full_content = await note_content_element.text_content()
+            # Use first 30 characters for search (enough to be unique)
+            search_text = full_content.strip()[:30].strip()
+
+            if not search_text:
+                print("❌ Public note appears to be empty")
+                return False
+
+            if debug:
+                print(f"🔍 Search text: '{search_text}'")
+
+            # Step 2: Navigate to main Simplenote app
+            if debug:
+                print(f"🌐 Navigating to Simplenote app...")
+            await writer.page.goto('https://app.simplenote.com/')
+            await asyncio.sleep(2)
+
+            # Step 3: Search for the note using content
+            search_selectors = [
+                'input[placeholder*="Search"]',
+                'input[type="search"]',
+                '.search-field',
+                'input.search-bar',
+                '[aria-label*="Search"]'
+            ]
+
+            search_box = None
+            for selector in search_selectors:
+                try:
+                    search_box = await writer.page.wait_for_selector(selector, timeout=3000)
+                    if search_box:
+                        if debug:
+                            print(f"✅ Found search box: {selector}")
+                        break
+                except:
+                    continue
+
+            if not search_box:
+                print("❌ Could not find search box in Simplenote")
+                return False
+
+            # Click and type the search text
+            await search_box.click()
+            await asyncio.sleep(0.5)
+            await search_box.fill(search_text)
+            if debug:
+                print(f"⏳ Waiting for search results...")
+            await asyncio.sleep(1.5)
+
+            # Step 4: Click the first matching note
+            first_note_selectors = [
+                '.note-list-item:first-child',
+                '.note-list .note:first-child',
+                '[role="button"].note:first-child',
+                'article:first-child',
+                '.note-preview:first-child'
+            ]
+
+            note_opened = False
+            for note_selector in first_note_selectors:
+                try:
+                    first_note = await writer.page.wait_for_selector(note_selector, timeout=2000)
+                    if first_note:
+                        if debug:
+                            print(f"✅ Clicking note: {note_selector}")
+                        await first_note.click()
+                        await asyncio.sleep(2)  # Wait for note to open
+                        note_opened = True
+                        break
+                except:
+                    continue
+
+            if not note_opened:
+                print("❌ Could not find or click note in search results")
+                return False
+
+            if debug:
+                print(f"✅ Note opened in editor")
+
+            # Step 5: Extract note UUID by clicking "Copy Internal Link" button
+            note_uuid = None
+            if init_session or debug:
+                if debug:
+                    print(f"📋 Extracting note UUID from 'Copy Internal Link'...")
+
+                # First, try to open the note actions menu/panel if it exists
+                menu_selectors = [
+                    # SVG-based ellipsis icon (three dots menu)
+                    'button:has(.icon-ellipsis-outline)',
+                    '.icon-ellipsis-outline',
+                    'svg.icon-ellipsis-outline',
+                    'button .icon-ellipsis-outline',
+
+                    # Other potential menu buttons
+                    'button.note-toolbar-button',
+                    'button[aria-label*="More"]',
+                    'button:has-text("...")',
+                    '.note-toolbar .icon-ellipsis',
+                    'button.icon-more',
+                    '.note-actions-toggle',
+                    'button.note-menu-toggle'
+                ]
+
+                for menu_selector in menu_selectors:
+                    try:
+                        menu_button = await writer.page.wait_for_selector(menu_selector, timeout=1000)
+                        if menu_button:
+                            if debug:
+                                print(f"   🔍 Found potential menu button: {menu_selector}")
+                            await menu_button.click()
+                            # Wait 2 seconds for menu to open and render
+                            await asyncio.sleep(2)
+                            break
+                    except:
+                        continue
+
+                # Now try to find and click the Copy Internal Link button
+                # Based on note-actions-panel structure: <label class="note-actions-item">
+                copy_link_selectors = [
+                    # Specific structure-based selectors (highest priority)
+                    'label.note-actions-item:has-text("Copy Internal Link")',
+                    '.note-actions-item:has-text("Copy Internal Link")',
+                    'label.note-actions-item:has-text("Internal Link")',
+                    '.note-actions-name:has-text("Copy Internal Link")',
+
+                    # Generic text-based selectors (fallback)
+                    'label:has-text("Copy Internal Link")',
+                    '*:has-text("Copy Internal Link")',
+                    'button:has-text("Copy Internal Link")',
+                    'a:has-text("Copy Internal Link")',
+
+                    # Partial text matches
+                    'label:has-text("Internal Link")',
+                    'button:has-text("Internal Link")',
+                    '*:has-text("Internal Link")',
+
+                    # Aria labels (least likely)
+                    '[aria-label*="Copy Internal Link"]',
+                    '[aria-label*="Internal Link"]'
+                ]
+
+                copy_button_found = False
+                for copy_selector in copy_link_selectors:
+                    try:
+                        copy_button = await writer.page.wait_for_selector(copy_selector, timeout=2000)
+                        if copy_button:
+                            if debug:
+                                print(f"   ✅ Found 'Copy Internal Link' button: {copy_selector}")
+                            await copy_button.click()
+                            # Wait 2 seconds for clipboard to update
+                            await asyncio.sleep(2)
+
+                            # Read from clipboard
+                            try:
+                                import pyperclip
+                                clipboard_content = pyperclip.paste()
+                                if debug:
+                                    print(f"   📋 Clipboard: {clipboard_content}")
+
+                                # Extract UUID from clipboard (simplenote://note/<uuid>)
+                                simplenote_pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+                                match = re.search(simplenote_pattern, clipboard_content)
+                                if match:
+                                    note_uuid = match.group(1)
+                                    if debug:
+                                        print(f"   ✅ Extracted note UUID: {note_uuid}")
+                                    copy_button_found = True
+                                    break
+                                else:
+                                    if debug:
+                                        print(f"   ⚠️  No UUID found in clipboard content")
+                            except Exception as e:
+                                if debug:
+                                    print(f"   ⚠️  Clipboard read failed: {e}")
+                    except Exception as e:
+                        if debug:
+                            print(f"   🔍 Selector '{copy_selector}' not found")
+                        continue
+
+                if not note_uuid and not copy_button_found:
+                    # Last resort: try to get all visible text elements and search for "Internal Link"
+                    if debug:
+                        print(f"   🔍 Searching for any elements containing 'Internal Link'...")
+                    try:
+                        # Get page content to debug
+                        all_buttons = await writer.page.query_selector_all('button, a, label, span')
+                        for btn in all_buttons[:50]:  # Check first 50 elements
+                            try:
+                                text = await btn.text_content()
+                                if text and 'internal' in text.lower() and 'link' in text.lower():
+                                    if debug:
+                                        print(f"   📍 Found element with text: '{text.strip()}'")
+                                    await btn.click()
+                                    # Wait 2 seconds for clipboard to update
+                                    await asyncio.sleep(2)
+
+                                    # Try clipboard
+                                    import pyperclip
+                                    clipboard_content = pyperclip.paste()
+                                    simplenote_pattern = r'simplenote://note/([0-9a-fA-F-]{36})'
+                                    match = re.search(simplenote_pattern, clipboard_content)
+                                    if match:
+                                        note_uuid = match.group(1)
+                                        if debug:
+                                            print(f"   ✅ Extracted note UUID: {note_uuid}")
+                                        break
+                            except:
+                                continue
+                    except:
+                        pass
+
+                if not note_uuid:
+                    if debug:
+                        print(f"   ⚠️  Could not extract note UUID, will generate session UUID instead")
+
+            # Close the ellipsis menu before writing (press Escape)
+            if debug:
+                print(f"🔙 Closing menu...")
+            await writer.page.keyboard.press('Escape')
+            await asyncio.sleep(0.5)
+
+            # Step 6: Write session metadata if requested (like session start)
+            if init_session:
+                from .session_manager import generate_html_metadata
+
+                # Use note UUID as session_id if available, otherwise generate one
+                if note_uuid:
+                    session_id = note_uuid
+                    if debug:
+                        print(f"🔮 Using note UUID as session ID: {session_id}")
+                else:
+                    import uuid as uuid_module
+                    session_id = str(uuid_module.uuid4())
+                    if debug:
+                        print(f"🔮 Generating new session ID: {session_id}")
+
+                # Generate metadata
+                metadata = generate_html_metadata(
+                    session_id=session_id,
+                    ai_assistant=ai_assistant,
+                    issue_number=issue_number
+                )
+
+                # Find the editor element
+                editor = await writer.page.wait_for_selector('div.note-editor, .note-content-editor', timeout=5000)
+                await editor.click()
+                await asyncio.sleep(0.5)
+
+                # Go to beginning
+                await writer.page.keyboard.press('Control+Home')
+                await asyncio.sleep(0.3)
+
+                # Type metadata
+                if debug:
+                    print(f"📝 Writing session metadata...")
+                await writer.page.keyboard.type(metadata, delay=0)
+                await asyncio.sleep(1)
+
+                # Save session data (using note UUID as search key)
+                from .session_manager import SessionState
+                session_state = SessionState()
+                session_data = {
+                    'session_id': session_id,
+                    'note_uuid': note_uuid,  # Store the actual note UUID
+                    'search_key': session_id,  # Use UUID to find note later (same as session_id)
+                    'public_url': public_url,  # Store public URL for reference
+                    'ai_assistant': ai_assistant,
+                    'issue_number': issue_number,
+                    'cdp_endpoint': cdp_url,
+                    'created_at': datetime.now().isoformat()
+                }
+                session_state.save_session(session_data)
+                if debug:
+                    print(f"💾 Session saved to .simexp/session.json")
+
+            # Step 6: Write user content
+            editor = await writer.page.wait_for_selector('div.note-editor, .note-content-editor', timeout=5000)
+            await editor.click()
+            await asyncio.sleep(0.5)
+
+            if mode == 'replace':
+                # Clear all content
+                if debug:
+                    print(f"🗑️  Replacing all content...")
+                await writer.page.keyboard.press('Control+A')
+                await writer.page.keyboard.press('Backspace')
+                await asyncio.sleep(0.3)
+            else:
+                # Append mode - go to end
+                if debug:
+                    print(f"📝 Appending content...")
+                await writer.page.keyboard.press('Control+End')
+                await asyncio.sleep(0.3)
+                # Add spacing
+                await writer.page.keyboard.type('\n\n', delay=0)
+
+            # Type the content
+            await writer.page.keyboard.type(content, delay=0)
+            await asyncio.sleep(2)  # Wait for autosave
+
+            if debug:
+                print(f"✅ Content written ({len(content)} chars)")
+                print(f"✅ Write successful!")
+
+            return True
+
+    except Exception as e:
+        print(f"❌ Error writing to public note: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+async def _add_session_metadata_to_note(note_url: str, uuid: str, cdp_url: str, ai_assistant: str = 'claude', issue_number: Optional[int] = None) -> None:
+    """
+    Add session metadata to an existing note (like session start does)
+
+    Args:
+        note_url: Internal Simplenote note URL
+        uuid: Note UUID
+        cdp_url: Chrome DevTools Protocol URL
+        ai_assistant: AI assistant name
+        issue_number: GitHub issue number
+    """
+    from .session_manager import generate_html_metadata
+
+    # Generate session ID
+    import uuid as uuid_module
+    session_id = str(uuid_module.uuid4())
+
+    # Generate metadata
+    metadata = generate_html_metadata(
+        session_id=session_id,
+        ai_assistant=ai_assistant,
+        issue_number=issue_number
+    )
+
+    # Write metadata to the beginning of the note
+    async with SimplenoteWriter(
+        note_url=note_url,
+        headless=False,
+        debug=False,
+        cdp_url=cdp_url
+    ) as writer:
+        await writer.page.goto(note_url)
+        await asyncio.sleep(1.5)
+
+        # Click into editor
+        editor = await writer.page.wait_for_selector('div.note-editor', timeout=5000)
+        await editor.click()
+        await asyncio.sleep(0.5)
+
+        # Go to beginning
+        await writer.page.keyboard.press('Control+Home')
+        await asyncio.sleep(0.3)
+
+        # Type metadata
+        await writer.page.keyboard.type(metadata, delay=10)
+
+        # Wait for autosave
+        await asyncio.sleep(2)
+
+    # Store session info in session.json
+    from .session_manager import SessionState
+    session_state = SessionState()
+    session_data = {
+        'session_id': session_id,
+        'search_key': session_id,
+        'ai_assistant': ai_assistant,
+        'issue_number': issue_number,
+        'created_at': datetime.now().isoformat(),
+        'note_uuid': uuid,
+        'note_url': note_url
+    }
+    session_state.save_session(session_data)
+
+
+def store_session_uuid(uuid: str) -> None:
+    """
+    Store resolved UUID in session.json for reuse
+
+    Args:
+        uuid: Internal note UUID to store
+    """
+    session_state = SessionState()
+    session_data = session_state.load_session() or {}
+
+    # Add or update session_uuid field
+    session_data['session_uuid'] = uuid
+    session_data['session_uuid_updated_at'] = datetime.now().isoformat()
+
+    session_state.save_session(session_data)
+    print(f"   🧠 Stored UUID in session.json")
+
+
+def get_session_uuid() -> Optional[str]:
+    """
+    Get stored UUID from session.json
+
+    Returns:
+        Stored UUID or None if not found
+    """
+    session_state = SessionState()
+    session_data = session_state.load_session()
+
+    if session_data and 'session_uuid' in session_data:
+        return session_data['session_uuid']
+
+    return None
+
 
 # ═══════════════════════════════════════════════════════════════
 # CDP URL RESOLUTION - Issue #11
@@ -300,21 +1058,60 @@ def init_config():
     print("💡 Ready to test? Run: simexp session start")
 
 
-def write_command(note_url, content=None, mode='append', headless=False, cdp_url=None):
+def write_command(note_url, content=None, mode='append', headless=False, cdp_url=None, init_session=False, ai_assistant='claude', issue_number=None):
     """
     Write content to Simplenote note via Playwright
 
+    Supports automatic resolution of public Simplenote URLs (/p/<uuid>) to
+    internal note UUIDs for writing to existing notes.
+
     Args:
-        note_url: Simplenote note URL
+        note_url: Simplenote note URL (supports both /n/ and /p/ URLs)
         content: Content to write (if None, read from stdin)
         mode: 'append' or 'replace'
         headless: Run browser in headless mode
         cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
+        init_session: Add session metadata to resolved note (like session start)
+        ai_assistant: AI assistant name if init_session=True
+        issue_number: GitHub issue number if init_session=True
     """
     import sys
 
     # Resolve CDP URL using priority chain (Issue #11)
     resolved_cdp = get_cdp_url(cdp_url)
+
+    # ═══════════════════════════════════════════════════════════════
+    # PUBLIC URL RESOLUTION - Write directly to opened note
+    # ♠️🌿🎸🧵 G.Music Assembly - Bridge public to private
+    # ═══════════════════════════════════════════════════════════════
+
+    # Detect public Simplenote URL pattern (/p/<uuid>)
+    if '/p/' in note_url:
+        print(f"♠️🌿🎸🧵 SimExp Public URL Resolution & Write")
+        print()
+
+        # Read from stdin if no content provided
+        if content is None:
+            print("📝 Reading content from stdin (Ctrl+D to finish)...")
+            content = sys.stdin.read()
+            if not content.strip():
+                print("❌ No content provided")
+                return
+
+        # Write directly to the note using browser navigation
+        success = asyncio.run(_write_to_public_note(
+            public_url=note_url,
+            content=content,
+            mode=mode,
+            cdp_url=resolved_cdp,
+            init_session=init_session,
+            ai_assistant=ai_assistant,
+            issue_number=issue_number
+        ))
+
+        if not success:
+            print("\n❌ Failed to write to note")
+        return
 
     # Read from stdin if no content provided
     if content is None:
@@ -1235,17 +2032,29 @@ def main():
         elif command == 'write':
             import argparse
             parser = argparse.ArgumentParser(
-                description='Write content to a Simplenote note.',
+                description='Write content to a Simplenote note. Automatically resolves public URLs (/p/<uuid>) to internal UUIDs.',
                 prog='simexp write')
-            parser.add_argument('content', help='The content to write. If not provided, reads from stdin.')
-            parser.add_argument('--note-url', default='https://app.simplenote.com/', help='The URL of the Simplenote note. Defaults to the main page, which will select the most recent note.')
+            parser.add_argument('note_url', help='The URL of the Simplenote note. Supports public URLs (https://app.simplenote.com/p/<uuid>) and internal URLs (https://app.simplenote.com/n/<uuid>).')
+            parser.add_argument('content', nargs='?', default=None, help='The content to write. If not provided, reads from stdin.')
             parser.add_argument('--mode', choices=['append', 'replace'], default='append', help='Write mode.')
             parser.add_argument('--headless', action='store_true', help='Run in headless mode.')
             parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL to connect to an existing browser.')
-            
+            parser.add_argument('--init-session', action='store_true', help='Initialize session metadata in resolved note (adds YAML header like session start).')
+            parser.add_argument('--ai', default='claude', choices=['claude', 'gemini'], help='AI assistant name (used with --init-session).')
+            parser.add_argument('--issue', type=int, default=None, help='GitHub issue number (used with --init-session).')
+
             args = parser.parse_args(sys.argv[2:])
 
-            write_command(args.note_url, args.content, mode=args.mode, headless=args.headless, cdp_url=args.cdp_url)
+            write_command(
+                args.note_url,
+                args.content,
+                mode=args.mode,
+                headless=args.headless,
+                cdp_url=args.cdp_url,
+                init_session=args.init_session,
+                ai_assistant=args.ai,
+                issue_number=args.issue
+            )
 
         elif command == 'read':
             # Usage: simexp read <note_url>

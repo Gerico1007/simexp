@@ -102,6 +102,7 @@ Check your Simplenote note - the message is there! It will also sync to your oth
 - **Authenticated Session**: Connects to your logged-in Chrome browser
 - **Cross-Device Sync**: Messages appear on all your devices
 - **Persistent Changes**: Content stays in notes (doesn't get reverted)
+- **Public URL Resolution**: Automatically resolves public URLs (/p/) to internal UUIDs for writing
 
 ### 🔮 Session-Aware Notes (NEW - Issue #4!)
 - **Automatic Session Notes**: Create dedicated Simplenote notes for each terminal session
@@ -328,6 +329,60 @@ If you need to write to a specific note, you can provide its URL.
 ```bash
 python -m simexp.simex write "Your message here" --note-url https://app.simplenote.com/p/NOTE_ID --cdp-url http://localhost:9222
 ```
+
+### 🔗 Public URL Resolution (NEW!)
+
+SimExp now supports writing to notes using their public URLs! Instead of extracting UUIDs, it writes directly to opened notes following the session start pattern.
+
+**How it works:**
+
+1. Loads the public URL to extract note content (first 30 chars for searching)
+2. Navigates to Simplenote app
+3. Searches for the note using the extracted content
+4. Clicks the note to open it in the editor
+5. Writes content directly to the opened note
+6. Optionally initializes session metadata (if `--init-session` flag is used)
+
+**Example:**
+```bash
+# Write to a note using its public URL
+simexp write https://app.simplenote.com/p/0ZqWsQ "Appended content"
+
+# Output:
+# ♠️🌿🎸🧵 SimExp Public URL Resolution & Write
+# 🌐 Loading public note to extract search text...
+# 🔍 Search text: 'First 30 characters of note...'
+# 🌐 Navigating to Simplenote app...
+# ✅ Found search box
+# ⏳ Waiting for search results...
+# ✅ Clicking note
+# ✅ Note opened in editor
+# 📝 Appending content...
+# ✅ Content written (16 chars)
+# ✅ Write successful!
+```
+
+**Initialize as Session Note:**
+```bash
+# Resolve public URL and add session metadata in one command
+simexp write https://app.simplenote.com/p/0ZqWsQ "Initial content" --init-session --ai claude --issue 42
+
+# This will:
+# 1. Navigate to public URL and extract note content for searching
+# 2. Search for the note in Simplenote app
+# 3. Click to open the note
+# 4. Add session metadata (YAML header) to the note
+# 5. Write your content to the note
+# 6. Store session info in .simexp/session.json
+# 7. You can now use 'simexp session write' with this note!
+```
+
+**Benefits:**
+- ✅ Write to existing notes using their public links
+- ✅ No UUID extraction needed - writes directly to opened notes
+- ✅ Follows session start pattern for reliability
+- ✅ Search-based resolution works even when URLs don't change (SPA mode)
+- ✅ Optional: Turn any note into a tracked session note
 
 ### Read from a Specific Note
 
@@ -611,6 +666,7 @@ SimExp is part of the **G.Music Assembly** ecosystem:
 
 - [x] **Session-aware notes** (✅ Issue #4 - COMPLETED!)
 - [x] **Timestamp integration** (✅ Issue #33 - COMPLETED!)
+- [x] **Public URL Resolution** (✅ COMPLETED! - Automatic UUID extraction for writing)
 - [ ] Monitor mode (real-time change detection)
 - [ ] Bidirectional sync daemon
 - [ ] Multiple channel support
