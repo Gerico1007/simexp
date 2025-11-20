@@ -187,7 +187,8 @@ async def create_session_note(
     issue_number: Optional[int] = None,
     cdp_url: str = 'http://localhost:9223',
     headless: bool = False,
-    debug: bool = True
+    debug: bool = True,
+    post_write_delay: float = 3.0
 ) -> Dict:
     """
     Create a new Simplenote note for the current session
@@ -204,6 +205,7 @@ async def create_session_note(
         cdp_url: Chrome DevTools Protocol URL
         headless: Run browser in headless mode
         debug: Enable debug logging
+        post_write_delay: Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)
 
     Returns:
         Dictionary with session info (session_id, note_url, etc.)
@@ -277,7 +279,7 @@ async def create_session_note(
 
         # Type the HTML tag metadata directly
         await writer.page.keyboard.type(metadata_header, delay=0)
-        await asyncio.sleep(1)  # Wait for autosave
+        await asyncio.sleep(post_write_delay)  # Wait for Simplenote to index the note
 
         print(f"✅ Metadata written to new note")
 

@@ -1174,7 +1174,7 @@ def read_command(note_url, headless=True):
 # ♠️🌿🎸🧵 G.Music Assembly - Session-Aware Notes
 # ═══════════════════════════════════════════════════════════════
 
-def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None):
+def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None, post_write_delay=3.0):
     """
     Start a new session and create a Simplenote note for it
 
@@ -1182,6 +1182,7 @@ def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None
         ai_assistant: AI assistant name (claude or gemini)
         issue_number: GitHub issue number being worked on
         cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
+        post_write_delay: Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)
     """
     # Resolve CDP URL using priority chain (Issue #11)
     resolved_cdp = get_cdp_url(cdp_url)
@@ -1196,7 +1197,8 @@ def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None
     session_data = asyncio.run(create_session_note(
         ai_assistant=ai_assistant,
         issue_number=issue_number,
-        cdp_url=resolved_cdp
+        cdp_url=resolved_cdp,
+        post_write_delay=post_write_delay
     ))
 
     print(f"\n✅ Session started successfully!")
@@ -2071,7 +2073,7 @@ def main():
                 print("♠️🌿🎸🧵 SimExp Session Management")
                 print("\nUsage: simexp session <subcommand>")
                 print("\nSession Management:")
-                print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
+                print("  start [--ai <assistant>] [--issue <number>] [--delay <seconds>]  - Start new session")
                 print("  list                                         - List all sessions (directory tree)")
                 print("  info                                         - Show current session & directory context")
                 print("  clear                                        - Clear active session")
@@ -2102,7 +2104,7 @@ def main():
                 print("♠️🌿🎸🧵 SimExp Session Management")
                 print("\nUsage: simexp session <subcommand>")
                 print("\nSession Management:")
-                print("  start [--ai <assistant>] [--issue <number>]  - Start new session")
+                print("  start [--ai <assistant>] [--issue <number>] [--delay <seconds>]  - Start new session")
                 print("  list                                         - List all sessions (directory tree)")
                 print("  info                                         - Show current session & directory context")
                 print("  clear                                        - Clear active session")
@@ -2134,9 +2136,10 @@ def main():
                 parser.add_argument('--ai', default='claude', choices=['claude', 'gemini'], help='AI assistant name')
                 parser.add_argument('--issue', type=int, help='GitHub issue number')
                 parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
+                parser.add_argument('--delay', type=float, default=3.0, help='Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)')
 
                 args = parser.parse_args(sys.argv[3:])
-                session_start_command(ai_assistant=args.ai, issue_number=args.issue, cdp_url=args.cdp_url)
+                session_start_command(ai_assistant=args.ai, issue_number=args.issue, cdp_url=args.cdp_url, post_write_delay=args.delay)
 
             elif subcommand == 'write':
                 import argparse
