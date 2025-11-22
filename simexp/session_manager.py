@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Optional, Dict, List
 from pathlib import Path
 import yaml
+import pyperclip
 
 from .playwright_writer import SimplenoteWriter, write_to_note
 from .session_file_handler import SessionFileHandler
@@ -142,6 +143,7 @@ def generate_html_metadata(
     ai_assistant: str = 'claude',
     agents: List[str] = None,
     issue_number: Optional[int] = None,
+    issue_url: Optional[str] = None,
     pr_number: Optional[int] = None
 ) -> str:
     """
@@ -160,6 +162,7 @@ def generate_html_metadata(
         ai_assistant: AI assistant name (claude or gemini)
         agents: List of agent names (defaults to Assembly agents)
         issue_number: GitHub issue number being worked on
+        issue_url: GitHub issue URL (https://github.com/owner/repo/issues/N)
         pr_number: GitHub PR number (if applicable)
 
     Returns:
@@ -173,6 +176,7 @@ def generate_html_metadata(
         'ai_assistant': ai_assistant,
         'agents': agents,
         'issue_number': issue_number,
+        'issue_url': issue_url,
         'pr_number': pr_number,
         'created_at': datetime.now().isoformat()
     }
@@ -185,6 +189,7 @@ def generate_html_metadata(
 async def create_session_note(
     ai_assistant: str = 'claude',
     issue_number: Optional[int] = None,
+    repo: Optional[str] = None,
     cdp_url: str = 'http://localhost:9223',
     headless: bool = False,
     debug: bool = True,
@@ -197,11 +202,13 @@ async def create_session_note(
     1. Generates a unique session UUID
     2. Uses Playwright to create a new note in Simplenote
     3. Writes YAML metadata header to the note
-    4. Saves session state to .simexp/session.json
+    4. Fetches GitHub issue data if issue_number is provided
+    5. Saves session state to .simexp/session.json
 
     Args:
         ai_assistant: AI assistant name (claude or gemini)
         issue_number: GitHub issue number being worked on
+        repo: GitHub repository in format 'owner/name' (auto-detected if not provided)
         cdp_url: Chrome DevTools Protocol URL
         headless: Run browser in headless mode
         debug: Enable debug logging
@@ -216,8 +223,20 @@ async def create_session_note(
     print(f"♠️🌿🎸🧵 Creating Session Note")
     print(f"🔮 Session ID: {session_id}")
     print(f"🤝 AI Assistant: {ai_assistant}")
+
+    # Fetch GitHub issue if provided
+    issue_data = None
+    issue_content = ""
     if issue_number:
         print(f"🎯 Issue: #{issue_number}")
+        from .github_issue import GitHubIssueFetcher
+        fetcher = GitHubIssueFetcher()
+        issue_data = fetcher.fetch_issue(issue_number, repo)
+        if issue_data:
+            print(f"✅ Fetched issue #{issue_number}")
+            issue_content = fetcher.format_for_session(issue_data)
+        else:
+            print(f"⚠️ Could not fetch issue #{issue_number}")
 
     # Connect to Simplenote and create new note
     # ⚡ FIX: Direct metadata write to avoid navigation bug
@@ -262,10 +281,12 @@ async def create_session_note(
         await writer.page.wait_for_load_state('networkidle')
 
         # Generate HTML tag metadata header
+        issue_url = issue_data.get('url') if issue_data else None
         metadata_header = generate_html_metadata(
             session_id=session_id,
             ai_assistant=ai_assistant,
-            issue_number=issue_number
+            issue_number=issue_number,
+            issue_url=issue_url
         )
 
         # ⚡ FIX: Write metadata DIRECTLY to the new note (already focused!)
@@ -277,11 +298,18 @@ async def create_session_note(
         await editor.click()
         await asyncio.sleep(0.5)
 
-        # Type the HTML tag metadata directly
-        await writer.page.keyboard.type(metadata_header, delay=0)
+        # Combine metadata header with issue content
+        full_content = metadata_header + issue_content
+
+        # Use clipboard-based insertion for reliability (faster and handles large content)
+        print(f"📝 Writing content to note (via clipboard)...")
+        pyperclip.copy(full_content)
+        await writer.page.keyboard.press('Control+a')  # Select all (in case there's placeholder text)
+        await asyncio.sleep(0.2)
+        await writer.page.keyboard.press('Control+v')  # Paste content
         await asyncio.sleep(post_write_delay)  # Wait for Simplenote to index the note
 
-        print(f"✅ Metadata written to new note")
+        print(f"✅ Content written to new note")
 
     # Save session state
     # ⚡ FIX: Use session_id as search key, not note_url

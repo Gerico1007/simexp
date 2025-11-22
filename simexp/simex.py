@@ -1174,13 +1174,14 @@ def read_command(note_url, headless=True):
 # ♠️🌿🎸🧵 G.Music Assembly - Session-Aware Notes
 # ═══════════════════════════════════════════════════════════════
 
-def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None, post_write_delay=3.0, init_file=None, init_heading=None):
+def session_start_command(ai_assistant='claude', issue_number=None, repo=None, cdp_url=None, post_write_delay=3.0, init_file=None, init_heading=None):
     """
     Start a new session and create a Simplenote note for it
 
     Args:
         ai_assistant: AI assistant name (claude or gemini)
         issue_number: GitHub issue number being worked on
+        repo: GitHub repository in format 'owner/name' (auto-detected if not provided)
         cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
         post_write_delay: Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)
         init_file: Optional file path to initialize session with
@@ -1199,6 +1200,7 @@ def session_start_command(ai_assistant='claude', issue_number=None, cdp_url=None
     session_data = asyncio.run(create_session_note(
         ai_assistant=ai_assistant,
         issue_number=issue_number,
+        repo=repo,
         cdp_url=resolved_cdp,
         post_write_delay=post_write_delay
     ))
@@ -2113,7 +2115,7 @@ def main():
                 print("♠️🌿🎸🧵 SimExp Session Management")
                 print("\nUsage: simexp session <subcommand>")
                 print("\nSession Management:")
-                print("  start [file] [--ai <assistant>] [--issue <number>] [--delay <seconds>]  - Start new session (optionally initialize with file)")
+                print("  start [file] [--ai <assistant>] [--issue <number>] [--repo <owner/name>] [--delay <seconds>]  - Start new session (optionally initialize with file)")
                 print("  list                                         - List all sessions (directory tree)")
                 print("  info                                         - Show current session & directory context")
                 print("  clear                                        - Clear active session")
@@ -2130,8 +2132,9 @@ def main():
                 print("  collab list                                  - List all collaborators")
                 print("  publish                                      - Publish note (get public URL)")
                 print("\nExamples:")
-                print("  simexp session start --ai claude --issue 42  # Start new session")
-                print("  simexp session start TEST_COMMANDS.md        # Start with file")
+                print("  simexp session start --ai claude --issue 42 --repo owner/repo  # Start with GitHub issue")
+                print("  simexp session start --ai claude --issue 42                    # Start (repo auto-detected)")
+                print("  simexp session start TEST_COMMANDS.md                          # Start with file")
                 print("  simexp session write 'Progress update'       # Write to session")
                 print("  simexp session collab ♠                      # Share with Nyro")
                 print("  simexp session collab assembly               # Share with all Assembly")
@@ -2146,12 +2149,13 @@ def main():
                 parser.add_argument('file', nargs='?', default=None, help='Optional file to initialize session with')
                 parser.add_argument('--ai', default='claude', choices=['claude', 'gemini'], help='AI assistant name')
                 parser.add_argument('--issue', type=int, help='GitHub issue number')
+                parser.add_argument('--repo', default=None, help='GitHub repository in format owner/name (auto-detected from git if not provided)')
                 parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
                 parser.add_argument('--delay', type=float, default=3.0, help='Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)')
                 parser.add_argument('--heading', default=None, help='Optional heading to add before the file content')
 
                 args = parser.parse_args(sys.argv[3:])
-                session_start_command(ai_assistant=args.ai, issue_number=args.issue, cdp_url=args.cdp_url, post_write_delay=args.delay, init_file=args.file, init_heading=args.heading)
+                session_start_command(ai_assistant=args.ai, issue_number=args.issue, repo=args.repo, cdp_url=args.cdp_url, post_write_delay=args.delay, init_file=args.file, init_heading=args.heading)
 
             elif subcommand == 'write':
                 import argparse
