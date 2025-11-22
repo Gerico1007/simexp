@@ -143,6 +143,7 @@ def generate_html_metadata(
     ai_assistant: str = 'claude',
     agents: List[str] = None,
     issue_number: Optional[int] = None,
+    issue_url: Optional[str] = None,
     pr_number: Optional[int] = None
 ) -> str:
     """
@@ -161,6 +162,7 @@ def generate_html_metadata(
         ai_assistant: AI assistant name (claude or gemini)
         agents: List of agent names (defaults to Assembly agents)
         issue_number: GitHub issue number being worked on
+        issue_url: GitHub issue URL (https://github.com/owner/repo/issues/N)
         pr_number: GitHub PR number (if applicable)
 
     Returns:
@@ -174,6 +176,7 @@ def generate_html_metadata(
         'ai_assistant': ai_assistant,
         'agents': agents,
         'issue_number': issue_number,
+        'issue_url': issue_url,
         'pr_number': pr_number,
         'created_at': datetime.now().isoformat()
     }
@@ -278,10 +281,12 @@ async def create_session_note(
         await writer.page.wait_for_load_state('networkidle')
 
         # Generate HTML tag metadata header
+        issue_url = issue_data.get('url') if issue_data else None
         metadata_header = generate_html_metadata(
             session_id=session_id,
             ai_assistant=ai_assistant,
-            issue_number=issue_number
+            issue_number=issue_number,
+            issue_url=issue_url
         )
 
         # ⚡ FIX: Write metadata DIRECTLY to the new note (already focused!)
