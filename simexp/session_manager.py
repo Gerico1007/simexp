@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Optional, Dict, List
 from pathlib import Path
 import yaml
+import pyperclip
 
 from .playwright_writer import SimplenoteWriter, write_to_note
 from .session_file_handler import SessionFileHandler
@@ -292,19 +293,18 @@ async def create_session_note(
         await editor.click()
         await asyncio.sleep(0.5)
 
-        # Type the HTML tag metadata directly
-        await writer.page.keyboard.type(metadata_header, delay=0)
+        # Combine metadata header with issue content
+        full_content = metadata_header + issue_content
 
-        # Add issue content if available
-        if issue_content:
-            print(f"📄 Adding issue content to note...")
-            await writer.page.keyboard.type(issue_content, delay=0)
-
+        # Use clipboard-based insertion for reliability (faster and handles large content)
+        print(f"📝 Writing content to note (via clipboard)...")
+        pyperclip.copy(full_content)
+        await writer.page.keyboard.press('Control+a')  # Select all (in case there's placeholder text)
+        await asyncio.sleep(0.2)
+        await writer.page.keyboard.press('Control+v')  # Paste content
         await asyncio.sleep(post_write_delay)  # Wait for Simplenote to index the note
 
-        print(f"✅ Metadata written to new note")
-        if issue_content:
-            print(f"✅ Issue content added to new note")
+        print(f"✅ Content written to new note")
 
     # Save session state
     # ⚡ FIX: Use session_id as search key, not note_url
