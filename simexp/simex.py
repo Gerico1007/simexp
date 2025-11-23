@@ -1384,11 +1384,44 @@ def session_write_command(content=None, cdp_url=None, date_flag=None, prepend=Fa
             await asyncio.sleep(3)  # Increased from 1 to 3 seconds
 
             print(f"✅ Write successful!")
+
+            # 🧭 Phase 3: Track write in session data
+            _track_content_write(len(content), 'append' if not prepend else 'prepend', bool(date_flag))
+
             return True
 
     success = asyncio.run(write_to_session())
     if not success:
         print(f"\n❌ Write failed")
+
+
+def _track_content_write(content_length: int, mode: str, has_timestamp: bool) -> None:
+    """
+    Track content write in session data (Phase 3: South Direction)
+
+    Records write metadata for audit and completion tracking.
+
+    Args:
+        content_length: Length of content written in characters
+        mode: Write mode ('append' or 'prepend')
+        has_timestamp: Whether timestamp was added to content
+    """
+    try:
+        from .session_manager import update_session_data
+
+        write_data = {
+            'content_length': content_length,
+            'mode': mode,
+            'prepend': mode == 'prepend',
+            'has_timestamp': has_timestamp
+        }
+
+        update_session_data('south', 'content_written', write_data)
+        print(f"📊 Write tracked in SOUTH direction")
+
+    except Exception as e:
+        # Don't block the write operation if tracking fails
+        print(f"⚠️ Warning: Could not track write metadata: {e}")
 
 
 def session_read_command(cdp_url=None):
