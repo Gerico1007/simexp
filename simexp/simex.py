@@ -1174,7 +1174,7 @@ def read_command(note_url, headless=True):
 # ♠️🌿🎸🧵 G.Music Assembly - Session-Aware Notes
 # ═══════════════════════════════════════════════════════════════
 
-def session_start_command(ai_assistant='claude', issue_number=None, repo=None, cdp_url=None, post_write_delay=3.0, init_file=None, init_heading=None):
+def session_start_command(ai_assistant='claude', issue_number=None, repo=None, cdp_url=None, post_write_delay=3.0, init_file=None, init_heading=None, intention=None):
     """
     Start a new session and create a Simplenote note for it
 
@@ -1186,6 +1186,7 @@ def session_start_command(ai_assistant='claude', issue_number=None, repo=None, c
         post_write_delay: Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)
         init_file: Optional file path to initialize session with
         init_heading: Optional heading to add before the file content
+        intention: Optional vision statement for the session (Phase 6: East Direction)
     """
     # Resolve CDP URL using priority chain (Issue #11)
     resolved_cdp = get_cdp_url(cdp_url)
@@ -1211,6 +1212,17 @@ def session_start_command(ai_assistant='claude', issue_number=None, repo=None, c
     print(f"🔑 Search Key: {session_data['search_key']}")
     print()
     print(f"💡 This session is active for: {current_dir}")
+
+    # Set intention if provided (Phase 6: East Direction)
+    if intention:
+        try:
+            session_data['east']['vision_statement'] = intention
+            state = SessionState()
+            state.save_session(session_data)
+            print(f"\n🌅 Intention set in EAST direction:")
+            print(f"   Vision: {intention}")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not set intention: {e}")
 
     # Initialize with file if provided
     if init_file:
@@ -2485,9 +2497,10 @@ def main():
                 parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
                 parser.add_argument('--delay', type=float, default=3.0, help='Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)')
                 parser.add_argument('--heading', default=None, help='Optional heading to add before the file content')
+                parser.add_argument('--intention', default=None, help='Vision statement for the session (Phase 6: East Direction)')
 
                 args = parser.parse_args(sys.argv[3:])
-                session_start_command(ai_assistant=args.ai, issue_number=args.issue, repo=args.repo, cdp_url=args.cdp_url, post_write_delay=args.delay, init_file=args.file, init_heading=args.heading)
+                session_start_command(ai_assistant=args.ai, issue_number=args.issue, repo=args.repo, cdp_url=args.cdp_url, post_write_delay=args.delay, init_file=args.file, init_heading=args.heading, intention=args.intention)
 
             elif subcommand == 'write':
                 import argparse
