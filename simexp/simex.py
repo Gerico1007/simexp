@@ -1805,6 +1805,253 @@ def session_share_command(identifier, cdp_url=None):
         sys.exit(1)
 
 
+# ═══════════════════════════════════════════════════════════════
+# PHASE 5: NORTH DIRECTION - REFLECTION & WISDOM EXTRACTION
+# ♠️🌿🎸🧵 G.Music Assembly - North Direction Commands
+# ═══════════════════════════════════════════════════════════════
+
+def _track_north_reflection(prompt: Optional[str], reflection: str) -> None:
+    """
+    Track reflection note in north direction
+
+    Args:
+        prompt: Optional prompt or question that prompted the reflection
+        reflection: The reflection text itself
+    """
+    try:
+        session = get_active_session()
+        if session:
+            reflection_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'prompt': prompt,
+                'reflection': reflection
+            }
+            session['north']['reflection_notes'].append(reflection_entry)
+
+            state = SessionState()
+            state.save_session(session)
+            print(f"✅ Reflection tracked in NORTH direction")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not track reflection: {e}")
+
+
+def session_reflect_command(prompt: Optional[str] = None):
+    """
+    Open editor for reflection notes (Phase 5: North Direction)
+
+    Opens the user's default editor to capture reflection notes.
+    Tracks the reflection in the north direction.
+
+    Args:
+        prompt: Optional prompt or question for reflection
+    """
+    import tempfile
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        return
+
+    # Build prompt text if provided
+    prompt_text = ""
+    if prompt:
+        prompt_text = f"Reflection prompt: {prompt}\n\n"
+
+    # Create temporary file for editing
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        f.write(prompt_text)
+        temp_path = f.name
+
+    try:
+        # Open in editor
+        editor = os.environ.get('EDITOR', 'vim')
+        subprocess.run([editor, temp_path], check=True)
+
+        # Read the reflection
+        with open(temp_path, 'r') as f:
+            reflection = f.read().strip()
+
+        if reflection:
+            # Remove the prompt text from reflection if it exists
+            if prompt_text and reflection.startswith(prompt_text):
+                reflection = reflection[len(prompt_text):].strip()
+
+            _track_north_reflection(prompt, reflection)
+            print(f"🌐 Reflection recorded in NORTH direction")
+        else:
+            print("⚠️ No reflection recorded")
+
+    except subprocess.CalledProcessError:
+        print("⚠️ Editor cancelled")
+    except Exception as e:
+        print(f"❌ Error during reflection: {e}")
+    finally:
+        # Clean up temp file
+        try:
+            os.unlink(temp_path)
+        except:
+            pass
+
+
+def _track_north_pattern(pattern: str) -> None:
+    """Track observed pattern in north direction"""
+    try:
+        session = get_active_session()
+        if session:
+            pattern_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'pattern': pattern
+            }
+            session['north']['observed_patterns'].append(pattern_entry)
+
+            state = SessionState()
+            state.save_session(session)
+            print(f"✅ Pattern tracked in NORTH direction")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not track pattern: {e}")
+
+
+def session_observe_pattern_command(pattern: str):
+    """
+    Record an observed pattern (Phase 5: North Direction)
+
+    Captures patterns noticed during the session work.
+    Patterns are insights about recurring behaviors, structures, or themes.
+
+    Args:
+        pattern: Description of the observed pattern
+    """
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        return
+
+    if not pattern or not pattern.strip():
+        print("❌ Pattern cannot be empty")
+        return
+
+    _track_north_pattern(pattern.strip())
+    print(f"🌐 Pattern recorded in NORTH direction")
+
+
+def _track_north_wisdom(wisdom: str) -> None:
+    """Track extracted wisdom in north direction"""
+    try:
+        session = get_active_session()
+        if session:
+            wisdom_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'wisdom': wisdom
+            }
+            session['north']['extracted_wisdom'].append(wisdom_entry)
+
+            state = SessionState()
+            state.save_session(session)
+            print(f"✅ Wisdom tracked in NORTH direction")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not track wisdom: {e}")
+
+
+def session_extract_wisdom_command(wisdom: str):
+    """
+    Extract and record wisdom (Phase 5: North Direction)
+
+    Captures distilled wisdom or key learnings from the session.
+    Wisdom should be actionable insights or principles discovered.
+
+    Args:
+        wisdom: The wisdom or key learning
+    """
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        return
+
+    if not wisdom or not wisdom.strip():
+        print("❌ Wisdom cannot be empty")
+        return
+
+    _track_north_wisdom(wisdom.strip())
+    print(f"🌐 Wisdom extracted in NORTH direction")
+
+
+def session_complete_command(seeds: Optional[str] = None):
+    """
+    Complete the session ceremony (Phase 5: North Direction)
+
+    Marks the session as complete and optionally adds seeds for next session.
+    Displays a completion summary with Four Directions status.
+
+    Args:
+        seeds: Optional seeds (insights/tasks) for next session
+    """
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        return
+
+    # Mark as complete
+    session['north']['completed'] = True
+    session['north']['completed_at'] = datetime.now().isoformat()
+
+    # Add seeds if provided
+    if seeds and seeds.strip():
+        seed_entry = {
+            'timestamp': datetime.now().isoformat(),
+            'seed': seeds.strip()
+        }
+        session['north']['seeds_for_next'].append(seed_entry)
+
+    # Recalculate stats
+    from .session_manager import calculate_session_stats
+    session = calculate_session_stats(session)
+
+    # Save
+    state = SessionState()
+    state.save_session(session)
+
+    # Display completion ceremony
+    print("\n" + "╔" + "═" * 68 + "╗")
+    print("║" + " " * 68 + "║")
+    print("║" + "  🌅 SESSION COMPLETION CEREMONY 🌐".center(68) + "║")
+    print("║" + " " * 68 + "║")
+    print("╚" + "═" * 68 + "╝")
+
+    # Four Directions Summary
+    print("\n♠️ EAST - Intention & Vision:")
+    if session['east']['vision_statement']:
+        print(f"   Vision: {session['east']['vision_statement']}")
+    if session['east']['goals']:
+        print(f"   Goals: {len(session['east']['goals'])} goal(s) set")
+
+    print("\n🌱 SOUTH - Building & Growth:")
+    print(f"   Files Added: {session['stats']['total_files']}")
+    print(f"   Content Writes: {session['stats']['total_writes']}")
+    print(f"   Collaborators: {session['stats']['total_collaborators']}")
+
+    print("\n🌄 WEST - Sharing & Publishing:")
+    if session['west']['published']:
+        print(f"   Status: ✅ Published")
+        print(f"   URL: {session['west']['public_url']}")
+    else:
+        print(f"   Status: ⏳ Not yet published")
+
+    print("\n🌐 NORTH - Reflection & Wisdom:")
+    print(f"   Reflections: {len(session['north']['reflection_notes'])}")
+    print(f"   Patterns Observed: {len(session['north']['observed_patterns'])}")
+    print(f"   Wisdom Extracted: {len(session['north']['extracted_wisdom'])}")
+    print(f"   Seeds for Next: {len(session['north']['seeds_for_next'])}")
+
+    print("\n📊 Session Completion: {:.0f}%".format(session['stats']['completion_percentage']))
+
+    if seeds and seeds.strip():
+        print(f"\n🌱 Seeds for Next Session: {seeds.strip()}")
+
+    print("\n" + "═" * 70)
+    print("✨ Session ceremony complete. May wisdom flow forward.")
+    print("═" * 70 + "\n")
+
+
 def run_extraction():
     """
     Original extraction workflow - fetches content from clipboard/config sources
@@ -2172,6 +2419,11 @@ def main():
                 print("  collab add <email>                           - Add collaborator by email")
                 print("  collab list                                  - List all collaborators")
                 print("  publish                                      - Publish note (get public URL)")
+                print("\nReflection & Wisdom (Phase 5: North Direction):")
+                print("  reflect [--prompt <text>]                    - Open editor for reflection notes")
+                print("  observe-pattern '<text>'                     - Record an observed pattern")
+                print("  extract-wisdom '<text>'                      - Extract and record wisdom")
+                print("  complete [--seeds '<text>']                  - Complete session with ceremony")
                 print("\nExamples:")
                 print("  simexp session start --ai claude --issue 42  # Start new session")
                 print("  simexp session start TEST_COMMANDS.md        # Start with file")
@@ -2204,6 +2456,11 @@ def main():
                 print("  collab add <email>                           - Add collaborator by email")
                 print("  collab list                                  - List all collaborators")
                 print("  publish                                      - Publish note (get public URL)")
+                print("\nReflection & Wisdom (Phase 5: North Direction):")
+                print("  reflect [--prompt <text>]                    - Open editor for reflection notes")
+                print("  observe-pattern '<text>'                     - Record an observed pattern")
+                print("  extract-wisdom '<text>'                      - Extract and record wisdom")
+                print("  complete [--seeds '<text>']                  - Complete session with ceremony")
                 print("\nExamples:")
                 print("  simexp session start --ai claude --issue 42 --repo owner/repo  # Start with GitHub issue")
                 print("  simexp session start --ai claude --issue 42                    # Start (repo auto-detected)")
@@ -2212,6 +2469,8 @@ def main():
                 print("  simexp session collab ♠                      # Share with Nyro")
                 print("  simexp session collab assembly               # Share with all Assembly")
                 print("  simexp session publish                       # Get public URL")
+                print("  simexp session reflect --prompt 'What did we achieve?'        # Reflect")
+                print("  simexp session complete --seeds 'Follow up on X'              # Complete")
                 sys.exit(0)
 
             if subcommand == 'start':
@@ -2395,6 +2654,46 @@ def main():
 
                 args = parser.parse_args(sys.argv[3:])
                 session_share_command(args.identifier, cdp_url=args.cdp_url)
+
+            elif subcommand == 'reflect':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Open editor for reflection notes (Phase 5: North Direction)',
+                    prog='simexp session reflect')
+                parser.add_argument('--prompt', default=None, help='Optional reflection prompt or question')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_reflect_command(prompt=args.prompt)
+
+            elif subcommand == 'observe-pattern':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Record an observed pattern (Phase 5: North Direction)',
+                    prog='simexp session observe-pattern')
+                parser.add_argument('pattern', help='Description of the observed pattern')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_observe_pattern_command(args.pattern)
+
+            elif subcommand == 'extract-wisdom':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Extract and record wisdom (Phase 5: North Direction)',
+                    prog='simexp session extract-wisdom')
+                parser.add_argument('wisdom', help='Wisdom or key learning from the session')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_extract_wisdom_command(args.wisdom)
+
+            elif subcommand == 'complete':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Complete the session ceremony (Phase 5: North Direction)',
+                    prog='simexp session complete')
+                parser.add_argument('--seeds', default=None, help='Seeds (insights/tasks) for next session')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_complete_command(seeds=args.seeds)
 
             else:
                 print(f"Unknown session subcommand: {subcommand}")
