@@ -1680,9 +1680,48 @@ def session_publish_command(cdp_url=None):
         print(f"\n✅ Note published successfully!")
         print(f"🌐 Public URL: {public_url}")
         print(f"{clipboard_status}")
+
+        # 🧭 Phase 4: Track publication in session data
+        _track_publication(public_url)
     else:
         print(f"\n⚠️  Publish completed but could not extract URL")
         print(f"💡 Check Simplenote UI for the public URL")
+
+
+def _track_publication(public_url: str) -> None:
+    """
+    Track publication in session data (Phase 4: West Direction)
+
+    Records publication metadata for sharing and external visibility tracking.
+
+    Args:
+        public_url: Public URL of the published note
+    """
+    try:
+        from .session_manager import update_session_data
+
+        # Update west direction with publication data
+        pub_data = {
+            'published': True,
+            'public_url': public_url
+        }
+
+        # We need to update west direction - this is special since it's not an array
+        # Let's use a direct session update approach
+        session = get_active_session()
+        if session:
+            session['west']['published'] = True
+            session['west']['published_at'] = __import__('datetime').datetime.now().isoformat()
+            session['west']['public_url'] = public_url
+
+            from .session_manager import SessionState
+            state = SessionState()
+            state.save_session(session)
+            print(f"📊 Publication tracked in WEST direction")
+
+    except Exception as e:
+        # Don't block the publish operation if tracking fails
+        print(f"⚠️ Warning: Could not track publication metadata: {e}")
 
 
 def session_collab_add_command(email, cdp_url=None):
