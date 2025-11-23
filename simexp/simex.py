@@ -1625,7 +1625,7 @@ def session_list_command():
 
 
 def session_info_command():
-    """Show detailed info about current session and directory context"""
+    """Show detailed info about current session and directory context with Four Directions status"""
     import sys
     from .session_manager import get_session_directory
 
@@ -1656,6 +1656,62 @@ def session_info_command():
     print()
     print(f"📍 Current Directory: {current_dir}")
     print()
+
+    # Display Four Directions Status (Phase 7 Enhancement)
+    if 'east' in session and 'stats' in session:
+        print("🧭 Four Directions Status:")
+        print()
+
+        # East - Intention & Vision
+        print(f"🌅 EAST (Intention & Vision):")
+        if session['east'].get('vision_statement'):
+            print(f"   Vision: {session['east']['vision_statement']}")
+        else:
+            print(f"   Vision: Not set")
+        goals = len(session['east'].get('goals', []))
+        print(f"   Goals: {goals}")
+        print()
+
+        # South - Building & Growth
+        print(f"🌱 SOUTH (Building & Growth):")
+        files = session['stats'].get('total_files', 0)
+        writes = session['stats'].get('total_writes', 0)
+        collabs = session['stats'].get('total_collaborators', 0)
+        print(f"   Files Added: {files}")
+        print(f"   Content Writes: {writes}")
+        print(f"   Collaborators: {collabs}")
+        print()
+
+        # West - Sharing & Publishing
+        print(f"🌄 WEST (Sharing & Publishing):")
+        published = session['west'].get('published', False)
+        if published:
+            print(f"   Status: ✅ Published")
+            print(f"   URL: {session['west'].get('public_url', 'N/A')}")
+        else:
+            print(f"   Status: ⏳ Not yet published")
+        print()
+
+        # North - Reflection & Wisdom
+        print(f"🌐 NORTH (Reflection & Wisdom):")
+        reflections = len(session['north'].get('reflection_notes', []))
+        patterns = len(session['north'].get('observed_patterns', []))
+        wisdom = len(session['north'].get('extracted_wisdom', []))
+        completed = session['north'].get('completed', False)
+        print(f"   Reflections: {reflections}")
+        print(f"   Patterns Observed: {patterns}")
+        print(f"   Wisdom Extracted: {wisdom}")
+        print(f"   Completed: {'✅ Yes' if completed else '⏳ In Progress'}")
+        print()
+
+        # Completion Percentage
+        completion = session['stats'].get('completion_percentage', 0)
+        bar_width = 30
+        filled = int((completion / 100) * bar_width)
+        bar = "█" * filled + "░" * (bar_width - filled)
+        print(f"📊 Session Completion: {bar} {completion:.0f}%")
+        print()
+
     print(f"💡 This session is active because you are in:")
     if session_dir:
         parent_dir = os.path.dirname(session_dir)
