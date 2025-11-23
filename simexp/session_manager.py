@@ -18,15 +18,250 @@ import pyperclip
 from .playwright_writer import SimplenoteWriter, write_to_note
 from .session_file_handler import SessionFileHandler
 
-async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None) -> None:
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FOUR DIRECTIONS SESSION TRACKING - Core Infrastructure Functions
+# ♠️🌿🎸🧵 Phase 1: Initialize Four Directions tracking capabilities
+# ═══════════════════════════════════════════════════════════════════════════
+
+def initialize_four_directions_session(session_data: Dict) -> Dict:
+    """
+    Initialize a session with Four Directions structure
+
+    Creates the data structure for tracking session progress across
+    four cardinal directions: East (intention), South (growth),
+    West (publishing), and North (reflection).
+
+    Args:
+        session_data: Existing session dictionary
+
+    Returns:
+        Enhanced session dictionary with Four Directions structure
+    """
+    session_data['east'] = {
+        'vision_statement': None,
+        'goals': []
+    }
+
+    session_data['south'] = {
+        'files_added': [],
+        'content_written': [],
+        'collaborations': []
+    }
+
+    session_data['west'] = {
+        'published': False,
+        'published_at': None,
+        'public_url': None,
+        'opened_in_browser': []
+    }
+
+    session_data['north'] = {
+        'reflection_notes': [],
+        'observed_patterns': [],
+        'extracted_wisdom': [],
+        'completed': False,
+        'completed_at': None,
+        'seeds_for_next': []
+    }
+
+    session_data['stats'] = {
+        'total_files': 0,
+        'total_writes': 0,
+        'total_collaborators': 0,
+        'session_duration_days': 0,
+        'completion_percentage': 0
+    }
+
+    return session_data
+
+
+def update_session_data(direction: str, action_type: str, action_data: Dict) -> None:
+    """
+    Update session data for a specific direction and action type
+
+    Appends action to the appropriate direction array, updates session.json,
+    and recalculates stats.
+
+    Args:
+        direction: Cardinal direction ('east', 'south', 'west', 'north')
+        action_type: Type of action within the direction (e.g., 'files_added', 'reflection_notes')
+        action_data: Dictionary containing the action data to append
+
+    Raises:
+        ValueError: If direction or action_type is invalid
+    """
+    valid_directions = ['east', 'south', 'west', 'north']
+    if direction not in valid_directions:
+        raise ValueError(f"Invalid direction: {direction}. Must be one of {valid_directions}")
+
+    # Get active session
+    session = get_active_session()
+    if not session:
+        raise ValueError("No active session found")
+
+    # Ensure direction exists
+    if direction not in session:
+        session = migrate_legacy_session(session)
+
+    # Append timestamp to action if not present
+    if 'timestamp' not in action_data:
+        action_data['timestamp'] = datetime.now().isoformat()
+
+    # Append action to the appropriate array
+    if action_type in session[direction]:
+        if isinstance(session[direction][action_type], list):
+            session[direction][action_type].append(action_data)
+        else:
+            # Handle non-list fields (like 'published')
+            session[direction][action_type] = action_data
+    else:
+        raise ValueError(f"Invalid action_type: {action_type} for direction {direction}")
+
+    # Recalculate stats
+    calculate_session_stats(session)
+
+    # Save session
+    state = SessionState()
+    state.save_session(session)
+
+
+def calculate_session_stats(session: Dict) -> Dict:
+    """
+    Calculate session statistics
+
+    Computes totals and metrics from the current session state.
+    Updates the stats dictionary in the session.
+
+    Args:
+        session: Session dictionary
+
+    Returns:
+        Updated session dictionary with recalculated stats
+    """
+    if 'south' not in session:
+        session = migrate_legacy_session(session)
+
+    # Count files
+    total_files = len(session.get('south', {}).get('files_added', []))
+
+    # Count writes
+    total_writes = len(session.get('south', {}).get('content_written', []))
+
+    # Count collaborators (unique emails)
+    collab_emails = set()
+    for collab in session.get('south', {}).get('collaborations', []):
+        if 'collaborator_email' in collab:
+            collab_emails.add(collab['collaborator_email'])
+    total_collaborators = len(collab_emails)
+
+    # Calculate session duration
+    created_at = session.get('created_at')
+    if created_at:
+        created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+        now_dt = datetime.now(created_dt.tzinfo)
+        duration_days = (now_dt - created_dt).days
+    else:
+        duration_days = 0
+
+    # Calculate completion percentage
+    completion_count = 0
+    total_directions = 4
+
+    if session.get('east', {}).get('vision_statement'):
+        completion_count += 1
+    if session.get('south', {}).get('files_added') or session.get('south', {}).get('content_written'):
+        completion_count += 1
+    if session.get('west', {}).get('published'):
+        completion_count += 1
+    if session.get('north', {}).get('completed'):
+        completion_count += 1
+
+    completion_percentage = int((completion_count / total_directions) * 100)
+
+    # Update stats
+    session['stats'] = {
+        'total_files': total_files,
+        'total_writes': total_writes,
+        'total_collaborators': total_collaborators,
+        'session_duration_days': duration_days,
+        'completion_percentage': completion_percentage
+    }
+
+    return session
+
+
+def migrate_legacy_session(session: Dict) -> Dict:
+    """
+    Migrate a legacy session to Four Directions format
+
+    Converts sessions created before the Four Directions enhancement
+    to the new format. Preserves all existing data and initializes
+    missing direction structures.
+
+    Args:
+        session: Session dictionary (may be in old or new format)
+
+    Returns:
+        Session dictionary in new Four Directions format
+    """
+    # Check if already migrated
+    if 'east' in session and 'south' in session and 'west' in session and 'north' in session:
+        return session
+
+    # Initialize new structure
+    if 'east' not in session:
+        session['east'] = {'vision_statement': None, 'goals': []}
+    if 'south' not in session:
+        session['south'] = {'files_added': [], 'content_written': [], 'collaborations': []}
+    if 'west' not in session:
+        session['west'] = {'published': False, 'published_at': None, 'public_url': None, 'opened_in_browser': []}
+    if 'north' not in session:
+        session['north'] = {
+            'reflection_notes': [],
+            'observed_patterns': [],
+            'extracted_wisdom': [],
+            'completed': False,
+            'completed_at': None,
+            'seeds_for_next': []
+        }
+    if 'stats' not in session:
+        session['stats'] = {
+            'total_files': 0,
+            'total_writes': 0,
+            'total_collaborators': 0,
+            'session_duration_days': 0,
+            'completion_percentage': 0
+        }
+
+    # Recalculate stats with new structure
+    calculate_session_stats(session)
+
+    return session
+
+
+async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None, direction: str = 'south') -> None:
     """
     Handle the session add command
+
+    Adds a file to the session note and tracks it in the session state
+    with full metadata. Supports Four Directions classification.
 
     Args:
         file_path: Path to the file to add
         heading: Optional heading to add before the file content
         cdp_url: Optional CDP URL for browser connection
+        direction: Cardinal direction ('east', 'south', 'west', 'north'). Default: 'south'
+
+    Raises:
+        ValueError: If direction is invalid
     """
+    # Validate direction
+    valid_directions = ['east', 'south', 'west', 'north']
+    if direction not in valid_directions:
+        print(f"❌ Invalid direction: {direction}. Must be one of {valid_directions}")
+        return
+
     # Get CDP URL from config if not provided
     if not cdp_url:
         from .simex import get_cdp_url
@@ -49,6 +284,7 @@ async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_
             print(f"🌐 Adding File to Session Note")
             print(f"🔮 Session: {session['session_id']}")
             print(f"📄 File: {Path(file_path).name}")
+            print(f"🧭 Direction: {direction.upper()}")
 
             await writer.page.goto('https://app.simplenote.com/')
             await writer.page.wait_for_load_state('networkidle')
@@ -74,10 +310,61 @@ async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_
 
             print(f"✅ Added file: {Path(file_path).name} to session")
 
+            # 🧭 Phase 2: Track file metadata in session state
+            _track_file_addition(file_path, heading, direction, len(formatted_content))
+
     except Exception as e:
         print(f"❌ Error adding file: {e}")
         import traceback
         traceback.print_exc()
+
+
+def _track_file_addition(file_path: str, heading: Optional[str], direction: str, content_length: int) -> None:
+    """
+    Track file addition in session data (Phase 2: South Direction)
+
+    Records file metadata for audit and completion tracking.
+
+    Args:
+        file_path: Absolute path to the file
+        heading: Optional heading used when adding
+        direction: Cardinal direction for the file
+        content_length: Length of formatted content in characters
+    """
+    try:
+        # Detect content type from file extension
+        file_ext = Path(file_path).suffix.lower()
+        content_type_map = {
+            '.md': 'markdown',
+            '.txt': 'text',
+            '.py': 'python',
+            '.js': 'javascript',
+            '.json': 'json',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.html': 'html',
+            '.css': 'css',
+            '.sh': 'shell'
+        }
+        content_type = content_type_map.get(file_ext, 'document')
+
+        # Prepare file metadata
+        file_data = {
+            'path': file_path,
+            'filename': Path(file_path).name,
+            'heading': heading,
+            'content_type': content_type,
+            'size_chars': content_length,
+            'direction': direction
+        }
+
+        # Update session data
+        update_session_data(direction, 'files_added', file_data)
+        print(f"📊 File tracked in {direction.upper()} direction")
+
+    except Exception as e:
+        # Don't block the add operation if tracking fails
+        print(f"⚠️ Warning: Could not track file metadata: {e}")
 
 
 class SessionState:
@@ -314,6 +601,7 @@ async def create_session_note(
     # Save session state
     # ⚡ FIX: Use session_id as search key, not note_url
     # 🧵 Enhancement (Issue #36): Store CDP endpoint for cross-device coordination
+    # 🧭 Phase 1: Initialize Four Directions structure for session tracking
     session_data = {
         'session_id': session_id,
         'search_key': session_id,  # Use session_id to find the note via search
@@ -323,10 +611,14 @@ async def create_session_note(
         'created_at': datetime.now().isoformat()
     }
 
+    # Initialize Four Directions structure for new sessions
+    session_data = initialize_four_directions_session(session_data)
+
     state = SessionState()
     state.save_session(session_data)
     print(f"💾 Session state saved to {state.state_file}")
     print(f"🔑 Search key: {session_id}")
+    print(f"🧭 Four Directions structure initialized")
 
     return session_data
 

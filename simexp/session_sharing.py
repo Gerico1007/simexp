@@ -780,6 +780,10 @@ async def add_session_collaborator(
             debug=debug
         )
 
+        # 🧭 Phase 3: Track collaboration in session data
+        if success:
+            _track_collaboration(email)
+
         return success
 
 
@@ -999,3 +1003,32 @@ async def share_session_note(
         'failed': failed,
         'total': len(emails)
     }
+
+
+def _track_collaboration(collaborator_email: str, glyph_used: Optional[str] = None, identifier: Optional[str] = None) -> None:
+    """
+    Track collaboration in session data (Phase 3: South Direction)
+
+    Records collaborator addition for audit and team tracking.
+
+    Args:
+        collaborator_email: Email address of collaborator being added
+        glyph_used: Optional glyph (♠, 🌿, 🎸, 🧵) if shared via assembly member
+        identifier: Optional identifier/alias used
+    """
+    try:
+        from .session_manager import update_session_data
+
+        collab_data = {
+            'collaborator_email': collaborator_email,
+            'glyph_used': glyph_used,
+            'identifier': identifier,
+            'action': 'added'
+        }
+
+        update_session_data('south', 'collaborations', collab_data)
+        print(f"📊 Collaboration tracked in SOUTH direction")
+
+    except Exception as e:
+        # Don't block the collaboration operation if tracking fails
+        print(f"⚠️ Warning: Could not track collaboration metadata: {e}")

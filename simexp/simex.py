@@ -1174,7 +1174,7 @@ def read_command(note_url, headless=True):
 # ♠️🌿🎸🧵 G.Music Assembly - Session-Aware Notes
 # ═══════════════════════════════════════════════════════════════
 
-def session_start_command(ai_assistant='claude', issue_number=None, repo=None, cdp_url=None, post_write_delay=3.0, init_file=None, init_heading=None):
+def session_start_command(ai_assistant='claude', issue_number=None, repo=None, cdp_url=None, post_write_delay=3.0, init_file=None, init_heading=None, intention=None):
     """
     Start a new session and create a Simplenote note for it
 
@@ -1186,6 +1186,7 @@ def session_start_command(ai_assistant='claude', issue_number=None, repo=None, c
         post_write_delay: Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)
         init_file: Optional file path to initialize session with
         init_heading: Optional heading to add before the file content
+        intention: Optional vision statement for the session (Phase 6: East Direction)
     """
     # Resolve CDP URL using priority chain (Issue #11)
     resolved_cdp = get_cdp_url(cdp_url)
@@ -1212,6 +1213,17 @@ def session_start_command(ai_assistant='claude', issue_number=None, repo=None, c
     print()
     print(f"💡 This session is active for: {current_dir}")
 
+    # Set intention if provided (Phase 6: East Direction)
+    if intention:
+        try:
+            session_data['east']['vision_statement'] = intention
+            state = SessionState()
+            state.save_session(session_data)
+            print(f"\n🌅 Intention set in EAST direction:")
+            print(f"   Vision: {intention}")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not set intention: {e}")
+
     # Initialize with file if provided
     if init_file:
         print(f"\n📄 Initializing session with file: {init_file}")
@@ -1220,18 +1232,28 @@ def session_start_command(ai_assistant='claude', issue_number=None, repo=None, c
         print(f"💡 Tip: Use 'simexp session write' to add content to your session note")
 
 
-def session_add_command(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None):
+def session_add_command(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None, direction: str = 'south'):
     """
-    Add file content to the current session's note using clipboard for efficiency
-    
+    Add file content to the current session's note
+
+    Adds a file to the session and tracks it with Four Directions metadata.
+    Supports classification by cardinal direction (east/south/west/north).
+
     Args:
         file_path: Path to the file to add
         heading: Optional heading to add before the file content
         cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
+        direction: Cardinal direction ('east', 'south', 'west', 'north'). Default: 'south'
     """
     import sys
     from pathlib import Path
-    from .session_file_handler import SessionFileHandler
+    from .session_manager import handle_session_add
+
+    # Validate direction
+    valid_directions = ['east', 'south', 'west', 'north']
+    if direction not in valid_directions:
+        print(f"❌ Invalid direction: {direction}. Must be one of {valid_directions}")
+        sys.exit(1)
 
     # Resolve CDP URL using priority chain (Issue #11)
     resolved_cdp = get_cdp_url(cdp_url)
@@ -1251,19 +1273,10 @@ def session_add_command(file_path: str, heading: Optional[str] = None, cdp_url: 
     print(f"♠️🌿🎸🧵 Adding File to Session Note")
     print(f"🔮 Session: {session['session_id']}")
     print(f"📄 File: {file_path.name}")
+    print(f"🧭 Direction: {direction.upper()}")
 
-    # Read and format file content
-    handler = SessionFileHandler()
-    try:
-        content = handler.read_file(str(file_path))
-        formatted_content = handler.format_content(str(file_path), content, heading)
-        print(f"📋 File content formatted ({len(formatted_content)} chars)")
-    except Exception as e:
-        print(f"❌ Error preparing file content: {e}")
-        sys.exit(1)
-
-    # Use the existing session_write_command to append content
-    session_write_command(formatted_content, cdp_url=resolved_cdp)
+    # 🧭 Phase 2: Call handle_session_add with direction parameter
+    asyncio.run(handle_session_add(str(file_path), heading=heading, cdp_url=resolved_cdp, direction=direction))
 
 def session_write_command(content=None, cdp_url=None, date_flag=None, prepend=False):
     """
@@ -1383,11 +1396,44 @@ def session_write_command(content=None, cdp_url=None, date_flag=None, prepend=Fa
             await asyncio.sleep(3)  # Increased from 1 to 3 seconds
 
             print(f"✅ Write successful!")
+
+            # 🧭 Phase 3: Track write in session data
+            _track_content_write(len(content), 'append' if not prepend else 'prepend', bool(date_flag))
+
             return True
 
     success = asyncio.run(write_to_session())
     if not success:
         print(f"\n❌ Write failed")
+
+
+def _track_content_write(content_length: int, mode: str, has_timestamp: bool) -> None:
+    """
+    Track content write in session data (Phase 3: South Direction)
+
+    Records write metadata for audit and completion tracking.
+
+    Args:
+        content_length: Length of content written in characters
+        mode: Write mode ('append' or 'prepend')
+        has_timestamp: Whether timestamp was added to content
+    """
+    try:
+        from .session_manager import update_session_data
+
+        write_data = {
+            'content_length': content_length,
+            'mode': mode,
+            'prepend': mode == 'prepend',
+            'has_timestamp': has_timestamp
+        }
+
+        update_session_data('south', 'content_written', write_data)
+        print(f"📊 Write tracked in SOUTH direction")
+
+    except Exception as e:
+        # Don't block the write operation if tracking fails
+        print(f"⚠️ Warning: Could not track write metadata: {e}")
 
 
 def session_read_command(cdp_url=None):
@@ -1579,7 +1625,7 @@ def session_list_command():
 
 
 def session_info_command():
-    """Show detailed info about current session and directory context"""
+    """Show detailed info about current session and directory context with Four Directions status"""
     import sys
     from .session_manager import get_session_directory
 
@@ -1610,6 +1656,62 @@ def session_info_command():
     print()
     print(f"📍 Current Directory: {current_dir}")
     print()
+
+    # Display Four Directions Status (Phase 7 Enhancement)
+    if 'east' in session and 'stats' in session:
+        print("🧭 Four Directions Status:")
+        print()
+
+        # East - Intention & Vision
+        print(f"🌅 EAST (Intention & Vision):")
+        if session['east'].get('vision_statement'):
+            print(f"   Vision: {session['east']['vision_statement']}")
+        else:
+            print(f"   Vision: Not set")
+        goals = len(session['east'].get('goals', []))
+        print(f"   Goals: {goals}")
+        print()
+
+        # South - Building & Growth
+        print(f"🌱 SOUTH (Building & Growth):")
+        files = session['stats'].get('total_files', 0)
+        writes = session['stats'].get('total_writes', 0)
+        collabs = session['stats'].get('total_collaborators', 0)
+        print(f"   Files Added: {files}")
+        print(f"   Content Writes: {writes}")
+        print(f"   Collaborators: {collabs}")
+        print()
+
+        # West - Sharing & Publishing
+        print(f"🌄 WEST (Sharing & Publishing):")
+        published = session['west'].get('published', False)
+        if published:
+            print(f"   Status: ✅ Published")
+            print(f"   URL: {session['west'].get('public_url', 'N/A')}")
+        else:
+            print(f"   Status: ⏳ Not yet published")
+        print()
+
+        # North - Reflection & Wisdom
+        print(f"🌐 NORTH (Reflection & Wisdom):")
+        reflections = len(session['north'].get('reflection_notes', []))
+        patterns = len(session['north'].get('observed_patterns', []))
+        wisdom = len(session['north'].get('extracted_wisdom', []))
+        completed = session['north'].get('completed', False)
+        print(f"   Reflections: {reflections}")
+        print(f"   Patterns Observed: {patterns}")
+        print(f"   Wisdom Extracted: {wisdom}")
+        print(f"   Completed: {'✅ Yes' if completed else '⏳ In Progress'}")
+        print()
+
+        # Completion Percentage
+        completion = session['stats'].get('completion_percentage', 0)
+        bar_width = 30
+        filled = int((completion / 100) * bar_width)
+        bar = "█" * filled + "░" * (bar_width - filled)
+        print(f"📊 Session Completion: {bar} {completion:.0f}%")
+        print()
+
     print(f"💡 This session is active because you are in:")
     if session_dir:
         parent_dir = os.path.dirname(session_dir)
@@ -1646,9 +1748,48 @@ def session_publish_command(cdp_url=None):
         print(f"\n✅ Note published successfully!")
         print(f"🌐 Public URL: {public_url}")
         print(f"{clipboard_status}")
+
+        # 🧭 Phase 4: Track publication in session data
+        _track_publication(public_url)
     else:
         print(f"\n⚠️  Publish completed but could not extract URL")
         print(f"💡 Check Simplenote UI for the public URL")
+
+
+def _track_publication(public_url: str) -> None:
+    """
+    Track publication in session data (Phase 4: West Direction)
+
+    Records publication metadata for sharing and external visibility tracking.
+
+    Args:
+        public_url: Public URL of the published note
+    """
+    try:
+        from .session_manager import update_session_data
+
+        # Update west direction with publication data
+        pub_data = {
+            'published': True,
+            'public_url': public_url
+        }
+
+        # We need to update west direction - this is special since it's not an array
+        # Let's use a direct session update approach
+        session = get_active_session()
+        if session:
+            session['west']['published'] = True
+            session['west']['published_at'] = __import__('datetime').datetime.now().isoformat()
+            session['west']['public_url'] = public_url
+
+            from .session_manager import SessionState
+            state = SessionState()
+            state.save_session(session)
+            print(f"📊 Publication tracked in WEST direction")
+
+    except Exception as e:
+        # Don't block the publish operation if tracking fails
+        print(f"⚠️ Warning: Could not track publication metadata: {e}")
 
 
 def session_collab_add_command(email, cdp_url=None):
@@ -1730,6 +1871,253 @@ def session_share_command(identifier, cdp_url=None):
     # Just handle exit code based on success
     if not result['success']:
         sys.exit(1)
+
+
+# ═══════════════════════════════════════════════════════════════
+# PHASE 5: NORTH DIRECTION - REFLECTION & WISDOM EXTRACTION
+# ♠️🌿🎸🧵 G.Music Assembly - North Direction Commands
+# ═══════════════════════════════════════════════════════════════
+
+def _track_north_reflection(prompt: Optional[str], reflection: str) -> None:
+    """
+    Track reflection note in north direction
+
+    Args:
+        prompt: Optional prompt or question that prompted the reflection
+        reflection: The reflection text itself
+    """
+    try:
+        session = get_active_session()
+        if session:
+            reflection_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'prompt': prompt,
+                'reflection': reflection
+            }
+            session['north']['reflection_notes'].append(reflection_entry)
+
+            state = SessionState()
+            state.save_session(session)
+            print(f"✅ Reflection tracked in NORTH direction")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not track reflection: {e}")
+
+
+def session_reflect_command(prompt: Optional[str] = None):
+    """
+    Open editor for reflection notes (Phase 5: North Direction)
+
+    Opens the user's default editor to capture reflection notes.
+    Tracks the reflection in the north direction.
+
+    Args:
+        prompt: Optional prompt or question for reflection
+    """
+    import tempfile
+
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        return
+
+    # Build prompt text if provided
+    prompt_text = ""
+    if prompt:
+        prompt_text = f"Reflection prompt: {prompt}\n\n"
+
+    # Create temporary file for editing
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        f.write(prompt_text)
+        temp_path = f.name
+
+    try:
+        # Open in editor
+        editor = os.environ.get('EDITOR', 'vim')
+        subprocess.run([editor, temp_path], check=True)
+
+        # Read the reflection
+        with open(temp_path, 'r') as f:
+            reflection = f.read().strip()
+
+        if reflection:
+            # Remove the prompt text from reflection if it exists
+            if prompt_text and reflection.startswith(prompt_text):
+                reflection = reflection[len(prompt_text):].strip()
+
+            _track_north_reflection(prompt, reflection)
+            print(f"🌐 Reflection recorded in NORTH direction")
+        else:
+            print("⚠️ No reflection recorded")
+
+    except subprocess.CalledProcessError:
+        print("⚠️ Editor cancelled")
+    except Exception as e:
+        print(f"❌ Error during reflection: {e}")
+    finally:
+        # Clean up temp file
+        try:
+            os.unlink(temp_path)
+        except:
+            pass
+
+
+def _track_north_pattern(pattern: str) -> None:
+    """Track observed pattern in north direction"""
+    try:
+        session = get_active_session()
+        if session:
+            pattern_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'pattern': pattern
+            }
+            session['north']['observed_patterns'].append(pattern_entry)
+
+            state = SessionState()
+            state.save_session(session)
+            print(f"✅ Pattern tracked in NORTH direction")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not track pattern: {e}")
+
+
+def session_observe_pattern_command(pattern: str):
+    """
+    Record an observed pattern (Phase 5: North Direction)
+
+    Captures patterns noticed during the session work.
+    Patterns are insights about recurring behaviors, structures, or themes.
+
+    Args:
+        pattern: Description of the observed pattern
+    """
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        return
+
+    if not pattern or not pattern.strip():
+        print("❌ Pattern cannot be empty")
+        return
+
+    _track_north_pattern(pattern.strip())
+    print(f"🌐 Pattern recorded in NORTH direction")
+
+
+def _track_north_wisdom(wisdom: str) -> None:
+    """Track extracted wisdom in north direction"""
+    try:
+        session = get_active_session()
+        if session:
+            wisdom_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'wisdom': wisdom
+            }
+            session['north']['extracted_wisdom'].append(wisdom_entry)
+
+            state = SessionState()
+            state.save_session(session)
+            print(f"✅ Wisdom tracked in NORTH direction")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not track wisdom: {e}")
+
+
+def session_extract_wisdom_command(wisdom: str):
+    """
+    Extract and record wisdom (Phase 5: North Direction)
+
+    Captures distilled wisdom or key learnings from the session.
+    Wisdom should be actionable insights or principles discovered.
+
+    Args:
+        wisdom: The wisdom or key learning
+    """
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        return
+
+    if not wisdom or not wisdom.strip():
+        print("❌ Wisdom cannot be empty")
+        return
+
+    _track_north_wisdom(wisdom.strip())
+    print(f"🌐 Wisdom extracted in NORTH direction")
+
+
+def session_complete_command(seeds: Optional[str] = None):
+    """
+    Complete the session ceremony (Phase 5: North Direction)
+
+    Marks the session as complete and optionally adds seeds for next session.
+    Displays a completion summary with Four Directions status.
+
+    Args:
+        seeds: Optional seeds (insights/tasks) for next session
+    """
+    session = get_active_session()
+    if not session:
+        print("❌ No active session. Run 'simexp session start' first.")
+        return
+
+    # Mark as complete
+    session['north']['completed'] = True
+    session['north']['completed_at'] = datetime.now().isoformat()
+
+    # Add seeds if provided
+    if seeds and seeds.strip():
+        seed_entry = {
+            'timestamp': datetime.now().isoformat(),
+            'seed': seeds.strip()
+        }
+        session['north']['seeds_for_next'].append(seed_entry)
+
+    # Recalculate stats
+    from .session_manager import calculate_session_stats
+    session = calculate_session_stats(session)
+
+    # Save
+    state = SessionState()
+    state.save_session(session)
+
+    # Display completion ceremony
+    print("\n" + "╔" + "═" * 68 + "╗")
+    print("║" + " " * 68 + "║")
+    print("║" + "  🌅 SESSION COMPLETION CEREMONY 🌐".center(68) + "║")
+    print("║" + " " * 68 + "║")
+    print("╚" + "═" * 68 + "╝")
+
+    # Four Directions Summary
+    print("\n♠️ EAST - Intention & Vision:")
+    if session['east']['vision_statement']:
+        print(f"   Vision: {session['east']['vision_statement']}")
+    if session['east']['goals']:
+        print(f"   Goals: {len(session['east']['goals'])} goal(s) set")
+
+    print("\n🌱 SOUTH - Building & Growth:")
+    print(f"   Files Added: {session['stats']['total_files']}")
+    print(f"   Content Writes: {session['stats']['total_writes']}")
+    print(f"   Collaborators: {session['stats']['total_collaborators']}")
+
+    print("\n🌄 WEST - Sharing & Publishing:")
+    if session['west']['published']:
+        print(f"   Status: ✅ Published")
+        print(f"   URL: {session['west']['public_url']}")
+    else:
+        print(f"   Status: ⏳ Not yet published")
+
+    print("\n🌐 NORTH - Reflection & Wisdom:")
+    print(f"   Reflections: {len(session['north']['reflection_notes'])}")
+    print(f"   Patterns Observed: {len(session['north']['observed_patterns'])}")
+    print(f"   Wisdom Extracted: {len(session['north']['extracted_wisdom'])}")
+    print(f"   Seeds for Next: {len(session['north']['seeds_for_next'])}")
+
+    print("\n📊 Session Completion: {:.0f}%".format(session['stats']['completion_percentage']))
+
+    if seeds and seeds.strip():
+        print(f"\n🌱 Seeds for Next Session: {seeds.strip()}")
+
+    print("\n" + "═" * 70)
+    print("✨ Session ceremony complete. May wisdom flow forward.")
+    print("═" * 70 + "\n")
 
 
 def run_extraction():
@@ -2099,6 +2487,11 @@ def main():
                 print("  collab add <email>                           - Add collaborator by email")
                 print("  collab list                                  - List all collaborators")
                 print("  publish                                      - Publish note (get public URL)")
+                print("\nReflection & Wisdom (Phase 5: North Direction):")
+                print("  reflect [--prompt <text>]                    - Open editor for reflection notes")
+                print("  observe-pattern '<text>'                     - Record an observed pattern")
+                print("  extract-wisdom '<text>'                      - Extract and record wisdom")
+                print("  complete [--seeds '<text>']                  - Complete session with ceremony")
                 print("\nExamples:")
                 print("  simexp session start --ai claude --issue 42  # Start new session")
                 print("  simexp session start TEST_COMMANDS.md        # Start with file")
@@ -2131,6 +2524,11 @@ def main():
                 print("  collab add <email>                           - Add collaborator by email")
                 print("  collab list                                  - List all collaborators")
                 print("  publish                                      - Publish note (get public URL)")
+                print("\nReflection & Wisdom (Phase 5: North Direction):")
+                print("  reflect [--prompt <text>]                    - Open editor for reflection notes")
+                print("  observe-pattern '<text>'                     - Record an observed pattern")
+                print("  extract-wisdom '<text>'                      - Extract and record wisdom")
+                print("  complete [--seeds '<text>']                  - Complete session with ceremony")
                 print("\nExamples:")
                 print("  simexp session start --ai claude --issue 42 --repo owner/repo  # Start with GitHub issue")
                 print("  simexp session start --ai claude --issue 42                    # Start (repo auto-detected)")
@@ -2139,6 +2537,8 @@ def main():
                 print("  simexp session collab ♠                      # Share with Nyro")
                 print("  simexp session collab assembly               # Share with all Assembly")
                 print("  simexp session publish                       # Get public URL")
+                print("  simexp session reflect --prompt 'What did we achieve?'        # Reflect")
+                print("  simexp session complete --seeds 'Follow up on X'              # Complete")
                 sys.exit(0)
 
             if subcommand == 'start':
@@ -2153,9 +2553,10 @@ def main():
                 parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
                 parser.add_argument('--delay', type=float, default=3.0, help='Delay (in seconds) after metadata write for Simplenote to index the note (default: 3.0)')
                 parser.add_argument('--heading', default=None, help='Optional heading to add before the file content')
+                parser.add_argument('--intention', default=None, help='Vision statement for the session (Phase 6: East Direction)')
 
                 args = parser.parse_args(sys.argv[3:])
-                session_start_command(ai_assistant=args.ai, issue_number=args.issue, repo=args.repo, cdp_url=args.cdp_url, post_write_delay=args.delay, init_file=args.file, init_heading=args.heading)
+                session_start_command(ai_assistant=args.ai, issue_number=args.issue, repo=args.repo, cdp_url=args.cdp_url, post_write_delay=args.delay, init_file=args.file, init_heading=args.heading, intention=args.intention)
 
             elif subcommand == 'write':
                 import argparse
@@ -2219,14 +2620,17 @@ def main():
             elif subcommand == 'add':
                 import argparse
                 parser = argparse.ArgumentParser(
-                    description='Add file content to session note',
+                    description='Add file content to session note with Four Directions tracking',
                     prog='simexp session add')
                 parser.add_argument('file', help='Path to the file to add')
                 parser.add_argument('--heading', help='Optional heading to add before the file content')
+                parser.add_argument('--direction', default='south',
+                                  choices=['east', 'south', 'west', 'north'],
+                                  help='Cardinal direction for file classification (default: south)')
                 parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                 args = parser.parse_args(sys.argv[3:])
-                session_add_command(args.file, heading=args.heading, cdp_url=args.cdp_url)
+                session_add_command(args.file, heading=args.heading, cdp_url=args.cdp_url, direction=args.direction)
 
             elif subcommand == 'publish':
                 import argparse
@@ -2319,6 +2723,46 @@ def main():
 
                 args = parser.parse_args(sys.argv[3:])
                 session_share_command(args.identifier, cdp_url=args.cdp_url)
+
+            elif subcommand == 'reflect':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Open editor for reflection notes (Phase 5: North Direction)',
+                    prog='simexp session reflect')
+                parser.add_argument('--prompt', default=None, help='Optional reflection prompt or question')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_reflect_command(prompt=args.prompt)
+
+            elif subcommand == 'observe-pattern':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Record an observed pattern (Phase 5: North Direction)',
+                    prog='simexp session observe-pattern')
+                parser.add_argument('pattern', help='Description of the observed pattern')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_observe_pattern_command(args.pattern)
+
+            elif subcommand == 'extract-wisdom':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Extract and record wisdom (Phase 5: North Direction)',
+                    prog='simexp session extract-wisdom')
+                parser.add_argument('wisdom', help='Wisdom or key learning from the session')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_extract_wisdom_command(args.wisdom)
+
+            elif subcommand == 'complete':
+                import argparse
+                parser = argparse.ArgumentParser(
+                    description='Complete the session ceremony (Phase 5: North Direction)',
+                    prog='simexp session complete')
+                parser.add_argument('--seeds', default=None, help='Seeds (insights/tasks) for next session')
+
+                args = parser.parse_args(sys.argv[3:])
+                session_complete_command(seeds=args.seeds)
 
             else:
                 print(f"Unknown session subcommand: {subcommand}")
