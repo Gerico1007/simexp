@@ -1220,18 +1220,28 @@ def session_start_command(ai_assistant='claude', issue_number=None, repo=None, c
         print(f"💡 Tip: Use 'simexp session write' to add content to your session note")
 
 
-def session_add_command(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None):
+def session_add_command(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None, direction: str = 'south'):
     """
-    Add file content to the current session's note using clipboard for efficiency
-    
+    Add file content to the current session's note
+
+    Adds a file to the session and tracks it with Four Directions metadata.
+    Supports classification by cardinal direction (east/south/west/north).
+
     Args:
         file_path: Path to the file to add
         heading: Optional heading to add before the file content
         cdp_url: Chrome DevTools Protocol URL (uses priority chain if None)
+        direction: Cardinal direction ('east', 'south', 'west', 'north'). Default: 'south'
     """
     import sys
     from pathlib import Path
-    from .session_file_handler import SessionFileHandler
+    from .session_manager import handle_session_add
+
+    # Validate direction
+    valid_directions = ['east', 'south', 'west', 'north']
+    if direction not in valid_directions:
+        print(f"❌ Invalid direction: {direction}. Must be one of {valid_directions}")
+        sys.exit(1)
 
     # Resolve CDP URL using priority chain (Issue #11)
     resolved_cdp = get_cdp_url(cdp_url)
@@ -1251,19 +1261,10 @@ def session_add_command(file_path: str, heading: Optional[str] = None, cdp_url: 
     print(f"♠️🌿🎸🧵 Adding File to Session Note")
     print(f"🔮 Session: {session['session_id']}")
     print(f"📄 File: {file_path.name}")
+    print(f"🧭 Direction: {direction.upper()}")
 
-    # Read and format file content
-    handler = SessionFileHandler()
-    try:
-        content = handler.read_file(str(file_path))
-        formatted_content = handler.format_content(str(file_path), content, heading)
-        print(f"📋 File content formatted ({len(formatted_content)} chars)")
-    except Exception as e:
-        print(f"❌ Error preparing file content: {e}")
-        sys.exit(1)
-
-    # Use the existing session_write_command to append content
-    session_write_command(formatted_content, cdp_url=resolved_cdp)
+    # 🧭 Phase 2: Call handle_session_add with direction parameter
+    asyncio.run(handle_session_add(str(file_path), heading=heading, cdp_url=resolved_cdp, direction=direction))
 
 def session_write_command(content=None, cdp_url=None, date_flag=None, prepend=False):
     """
@@ -2219,14 +2220,17 @@ def main():
             elif subcommand == 'add':
                 import argparse
                 parser = argparse.ArgumentParser(
-                    description='Add file content to session note',
+                    description='Add file content to session note with Four Directions tracking',
                     prog='simexp session add')
                 parser.add_argument('file', help='Path to the file to add')
                 parser.add_argument('--heading', help='Optional heading to add before the file content')
+                parser.add_argument('--direction', default='south',
+                                  choices=['east', 'south', 'west', 'north'],
+                                  help='Cardinal direction for file classification (default: south)')
                 parser.add_argument('--cdp-url', default=None, help='Chrome DevTools Protocol URL')
 
                 args = parser.parse_args(sys.argv[3:])
-                session_add_command(args.file, heading=args.heading, cdp_url=args.cdp_url)
+                session_add_command(args.file, heading=args.heading, cdp_url=args.cdp_url, direction=args.direction)
 
             elif subcommand == 'publish':
                 import argparse

@@ -240,15 +240,28 @@ def migrate_legacy_session(session: Dict) -> Dict:
     return session
 
 
-async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None) -> None:
+async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_url: Optional[str] = None, direction: str = 'south') -> None:
     """
     Handle the session add command
+
+    Adds a file to the session note and tracks it in the session state
+    with full metadata. Supports Four Directions classification.
 
     Args:
         file_path: Path to the file to add
         heading: Optional heading to add before the file content
         cdp_url: Optional CDP URL for browser connection
+        direction: Cardinal direction ('east', 'south', 'west', 'north'). Default: 'south'
+
+    Raises:
+        ValueError: If direction is invalid
     """
+    # Validate direction
+    valid_directions = ['east', 'south', 'west', 'north']
+    if direction not in valid_directions:
+        print(f"❌ Invalid direction: {direction}. Must be one of {valid_directions}")
+        return
+
     # Get CDP URL from config if not provided
     if not cdp_url:
         from .simex import get_cdp_url
@@ -271,6 +284,7 @@ async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_
             print(f"🌐 Adding File to Session Note")
             print(f"🔮 Session: {session['session_id']}")
             print(f"📄 File: {Path(file_path).name}")
+            print(f"🧭 Direction: {direction.upper()}")
 
             await writer.page.goto('https://app.simplenote.com/')
             await writer.page.wait_for_load_state('networkidle')
@@ -296,10 +310,61 @@ async def handle_session_add(file_path: str, heading: Optional[str] = None, cdp_
 
             print(f"✅ Added file: {Path(file_path).name} to session")
 
+            # 🧭 Phase 2: Track file metadata in session state
+            _track_file_addition(file_path, heading, direction, len(formatted_content))
+
     except Exception as e:
         print(f"❌ Error adding file: {e}")
         import traceback
         traceback.print_exc()
+
+
+def _track_file_addition(file_path: str, heading: Optional[str], direction: str, content_length: int) -> None:
+    """
+    Track file addition in session data (Phase 2: South Direction)
+
+    Records file metadata for audit and completion tracking.
+
+    Args:
+        file_path: Absolute path to the file
+        heading: Optional heading used when adding
+        direction: Cardinal direction for the file
+        content_length: Length of formatted content in characters
+    """
+    try:
+        # Detect content type from file extension
+        file_ext = Path(file_path).suffix.lower()
+        content_type_map = {
+            '.md': 'markdown',
+            '.txt': 'text',
+            '.py': 'python',
+            '.js': 'javascript',
+            '.json': 'json',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.html': 'html',
+            '.css': 'css',
+            '.sh': 'shell'
+        }
+        content_type = content_type_map.get(file_ext, 'document')
+
+        # Prepare file metadata
+        file_data = {
+            'path': file_path,
+            'filename': Path(file_path).name,
+            'heading': heading,
+            'content_type': content_type,
+            'size_chars': content_length,
+            'direction': direction
+        }
+
+        # Update session data
+        update_session_data(direction, 'files_added', file_data)
+        print(f"📊 File tracked in {direction.upper()} direction")
+
+    except Exception as e:
+        # Don't block the add operation if tracking fails
+        print(f"⚠️ Warning: Could not track file metadata: {e}")
 
 
 class SessionState:
