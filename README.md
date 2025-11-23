@@ -104,20 +104,45 @@ Check your Simplenote note - the message is there! It will also sync to your oth
 - **Persistent Changes**: Content stays in notes (doesn't get reverted)
 - **Public URL Resolution**: Automatically resolves public URLs (/p/) to internal UUIDs for writing
 
-### 🔮 Session-Aware Notes (NEW - Issue #4!)
+### 🔮 Session-Aware Notes (NEW - Issue #4 & #55!)
 - **Automatic Session Notes**: Create dedicated Simplenote notes for each terminal session
-- **YAML Metadata**: Track session ID, AI assistant, agents, and issue number
-- **Persistent State**: Session info saved locally in `.simexp/session.json`
-- **CLI Integration**: Full command suite for session management
+- **Four Directions Framework**: Organize sessions by cardinal directions (East, South, West, North)
+- **Intention & Vision (East)**: Set goals and vision at session start with `--intention`
+- **Building & Growth (South)**: Track files added, content written, and collaborators
+- **Sharing & Publishing (West)**: Publish notes and track public URLs
+- **Reflection & Wisdom (North)**: Capture reflections, patterns, and wisdom with 4 new commands
+- **Persistent State**: Session info saved locally in `.simexp/session.json` with Four Directions structure
+- **CLI Integration**: Full command suite for session management and Four Directions tracking
 - **Cross-Device Session Logs**: Access session notes from any device
 
-**Session Commands:**
+**Core Session Commands:**
 ```bash
-simexp session start --ai claude --issue 42  # Create session note
-simexp session write "Progress update"       # Write to session
-simexp session status                        # Show session info
-simexp session open                          # Open in browser
-simexp session add path/to/file --heading "Optional Heading"  # Add file content to session
+# Create and manage sessions
+simexp session start --ai claude --issue 42 --intention "Build REST API"  # Create with intention
+simexp session info                                                          # Show Four Directions status
+simexp session clear                                                         # Clear active session
+
+# Content management
+simexp session write "Progress update"                                      # Write to session
+simexp session add path/to/file --heading "Heading"                       # Add file to session
+simexp session read                                                         # Read session content
+simexp session open                                                         # Open in browser
+simexp session publish                                                      # Publish and get public URL
+```
+
+**Collaboration:**
+```bash
+simexp session collab <glyph|email>                                       # Share with Assembly
+simexp session collab add email@example.com                               # Add collaborator
+simexp session collab list                                                # List collaborators
+```
+
+**Reflection & Wisdom (Phase 5: North Direction):**
+```bash
+simexp session reflect --prompt "What did we learn?"                      # Open editor for reflection
+simexp session observe-pattern "Pattern description"                      # Record observed pattern
+simexp session extract-wisdom "Key learning or principle"                 # Extract wisdom
+simexp session complete --seeds "Tasks for next session"                  # Finish with ceremony
 ```
 
 ### ⏰ Timestamp Integration (NEW - Issue #33!)
