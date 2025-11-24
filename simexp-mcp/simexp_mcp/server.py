@@ -20,6 +20,7 @@ from pathlib import Path
 
 from mcp.server import Server
 from mcp.types import Tool, TextContent, CallToolResult
+from mcp import stdio_server
 
 from simexp_mcp.tools import get_all_tools, execute_tool
 
@@ -61,9 +62,12 @@ class SimExpMCPServer:
 
     async def run(self):
         """Start the MCP server"""
-        async with self.server:
-            print("✅ SimExp MCP Server running...")
-            await self.server.wait()
+        async with stdio_server() as (read_stream, write_stream):
+            await self.server.run(
+                read_stream,
+                write_stream,
+                self.server.create_initialization_options()
+            )
 
 
 def main():
