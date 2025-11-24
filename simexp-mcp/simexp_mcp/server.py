@@ -19,7 +19,7 @@ from typing import Any, Optional
 from pathlib import Path
 
 from mcp.server import Server
-from mcp.types import Tool, TextContent, ToolResult
+from mcp.types import Tool, TextContent, CallToolResult
 
 from simexp_mcp.tools import get_all_tools, execute_tool
 
@@ -40,18 +40,24 @@ class SimExpMCPServer:
             return get_all_tools()
 
         @self.server.call_tool()
-        async def call_tool(name: str, arguments: dict) -> list[ToolResult]:
+        async def call_tool(name: str, arguments: dict) -> list[CallToolResult]:
             """Execute a SimExp tool"""
             try:
                 result = await execute_tool(name, arguments)
-                return [ToolResult(
+                return [CallToolResult(
                     type="text",
-                    text=json.dumps(result) if isinstance(result, dict) else str(result)
+                    content=[TextContent(
+                        type="text",
+                        text=json.dumps(result) if isinstance(result, dict) else str(result)
+                    )]
                 )]
             except Exception as e:
-                return [ToolResult(
+                return [CallToolResult(
                     type="text",
-                    text=f"Error executing tool '{name}': {str(e)}",
+                    content=[TextContent(
+                        type="text",
+                        text=f"Error executing tool '{name}': {str(e)}"
+                    )],
                     isError=True
                 )]
 
