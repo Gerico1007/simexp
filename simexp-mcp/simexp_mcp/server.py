@@ -40,26 +40,24 @@ class SimExpMCPServer:
             return get_all_tools()
 
         @self.server.call_tool()
-        async def call_tool(name: str, arguments: dict) -> list[CallToolResult]:
+        async def call_tool(name: str, arguments: dict) -> CallToolResult:
             """Execute a SimExp tool"""
             try:
                 result = await execute_tool(name, arguments)
-                return [CallToolResult(
-                    type="text",
+                return CallToolResult(
                     content=[TextContent(
                         type="text",
                         text=json.dumps(result) if isinstance(result, dict) else str(result)
                     )]
-                )]
+                )
             except Exception as e:
-                return [CallToolResult(
-                    type="text",
+                return CallToolResult(
                     content=[TextContent(
                         type="text",
                         text=f"Error executing tool '{name}': {str(e)}"
                     )],
                     isError=True
-                )]
+                )
 
     async def run(self):
         """Start the MCP server"""
