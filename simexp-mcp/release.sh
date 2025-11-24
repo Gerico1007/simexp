@@ -88,17 +88,17 @@ main() {
 
     case $release_type in
         1)
-            python3 ../bump.py mcp patch
+            (cd .. && python3 bump.py mcp patch)
             ;;
         2)
-            python3 ../bump.py mcp minor
+            (cd .. && python3 bump.py mcp minor)
             ;;
         3)
-            python3 ../bump.py mcp major
+            (cd .. && python3 bump.py mcp major)
             ;;
         4)
             read -p "Enter version (e.g., 1.2.3): " custom_version
-            python3 ../bump.py mcp "$custom_version"
+            (cd .. && python3 bump.py mcp "$custom_version")
             ;;
         *)
             print_error "Invalid selection"
