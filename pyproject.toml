@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simexp"
+version = "0.5.0"
+description = "A web content extractor and archiver for simplenote with browser automation"
+readme = "README.md"
+requires-python = ">=3.6"
+license = { file = "LICENSE" }
+authors = [
+    { name = "gerico1007", email = "gerico@jgwill.com" }
+]
+keywords = ["simplenote", "extraction", "archiver", "web-scraping", "browser-automation"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "pyperclip",
+    "pyyaml",
+    "fetcher",
+    "playwright>=1.40.0",
+    "tlid>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+]
+mcp = [
+    "mcp>=1.0.0",
+]
+
+[project.scripts]
+simexp = "simexp:main"
+
+[project.urls]
+Homepage = "https://github.com/Gerico1007/simexp"
+Documentation = "https://github.com/Gerico1007/simexp"
+Repository = "https://github.com/Gerico1007/simexp"
+Issues = "https://github.com/Gerico1007/simexp/issues"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py36', 'py37', 'py38']
+
+[tool.ruff]
+line-length = 100
+target-version = "py36"
