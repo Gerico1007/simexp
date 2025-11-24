@@ -28,7 +28,7 @@ clean:
 
 bump:
 	@echo "📦 Bumping version..."
-	python3 ../bump.py mcp
+	python3 ../bump.py mcp patch
 	@echo "✅ Version bumped"
 
 build: clean
