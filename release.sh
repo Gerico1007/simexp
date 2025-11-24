@@ -55,7 +55,7 @@ check_on_main_branch() {
 }
 
 get_current_version() {
-    python -c "import re; content = open('setup.py').read(); match = re.search(r'version\s*=\s*[\"\']([\d.]+)[\"\']', content); print(match.group(1) if match else '')"
+    python3 -c "import re; content = open('setup.py').read(); match = re.search(r'version\s*=\s*[\"\']([\d.]+)[\"\']', content); print(match.group(1) if match else '')"
 }
 
 # Main workflow
@@ -87,17 +87,17 @@ main() {
 
     case $release_type in
         1)
-            python bump.py patch
+            python3 bump.py patch
             ;;
         2)
-            python bump.py minor
+            python3 bump.py minor
             ;;
         3)
-            python bump.py major
+            python3 bump.py major
             ;;
         4)
             read -p "Enter version (e.g., 1.2.3): " custom_version
-            python bump.py "$custom_version"
+            python3 bump.py "$custom_version"
             ;;
         *)
             print_error "Invalid selection"

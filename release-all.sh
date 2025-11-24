@@ -66,11 +66,11 @@ check_on_main_branch() {
 }
 
 get_main_version() {
-    python -c "import re; content = open('setup.py').read(); match = re.search(r'version\s*=\s*[\"\']([\d.]+)[\"\']', content); print(match.group(1) if match else '')"
+    python3 -c "import re; content = open('setup.py').read(); match = re.search(r'version\s*=\s*[\"\']([\d.]+)[\"\']', content); print(match.group(1) if match else '')"
 }
 
 get_mcp_version() {
-    python -c "import re; content = open('simexp-mcp/pyproject.toml').read(); match = re.search(r'version\s*=\s*[\"\']([\d.]+)[\"\']', content); print(match.group(1) if match else '')"
+    python3 -c "import re; content = open('simexp-mcp/pyproject.toml').read(); match = re.search(r'version\s*=\s*[\"\']([\d.]+)[\"\']', content); print(match.group(1) if match else '')"
 }
 
 # Main workflow

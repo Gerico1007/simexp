@@ -29,16 +29,16 @@ def bump_version_file(file_path, new_version):
 if __name__ == "__main__":
     # Parse command line arguments
     if len(sys.argv) < 2:
-        print("Usage: python bump.py <patch|minor|major> [mcp] [version]")
+        print("Usage: python3 bump.py <patch|minor|major> [mcp] [version]")
         print("")
         print("Examples:")
-        print("  python bump.py patch              # Bump main package patch version")
-        print("  python bump.py minor              # Bump main package minor version")
-        print("  python bump.py major              # Bump main package major version")
-        print("  python bump.py mcp patch          # Bump MCP package patch version")
-        print("  python bump.py mcp minor          # Bump MCP package minor version")
-        print("  python bump.py 0.5.1              # Set main package to specific version")
-        print("  python bump.py mcp 0.2.0          # Set MCP package to specific version")
+        print("  python3 bump.py patch              # Bump main package patch version")
+        print("  python3 bump.py minor              # Bump main package minor version")
+        print("  python3 bump.py major              # Bump main package major version")
+        print("  python3 bump.py mcp patch          # Bump MCP package patch version")
+        print("  python3 bump.py mcp minor          # Bump MCP package minor version")
+        print("  python3 bump.py 0.5.1              # Set main package to specific version")
+        print("  python3 bump.py mcp 0.2.0          # Set MCP package to specific version")
         sys.exit(1)
 
     # Determine package and bump type
