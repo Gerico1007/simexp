@@ -28,12 +28,12 @@ clean:
 
 bump:
 	@echo "📦 Bumping version..."
-	python bump.py
+	python3 bump.py
 	@echo "✅ Version bumped"
 
 build: clean
 	@echo "🔨 Building distributions..."
-	python -m build
+	python3 -m build
 	@echo "✅ Build complete"
 	@echo ""
 	@echo "📋 Checking package integrity..."
